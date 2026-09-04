@@ -1,15 +1,21 @@
+```http
+### ============================================================
+### AUTHENTICATION & SECURITY
+### ============================================================
+
 ### GET Public endpoint - no login required
 GET http://localhost:8080/
 
-### GET Obtain CSRF token to add to headers for other requests
-### Request a CSRF token before state-changing requests (POST, PUT, PATCH, DELETE, and logout).
-### Only repeat this request if you do not already have a valid XSRF-TOKEN or the request returns 403 due to CSRF.
+### GET Obtain CSRF token to add to headers for state-changing requests
+### Request a CSRF token before POST, PUT, PATCH, DELETE, and logout.
+### Only repeat this request if you do not already have a valid XSRF-TOKEN
+### or the request returns 403 due to CSRF.
 GET http://localhost:8080/csrf
 
 ### POST Register New User - no login required
 POST http://localhost:8080/auth/register
 Content-Type: application/json
-X-XSRF-TOKEN: t0709uRWRRQkIxcRK03R4hyOJ9wk4_ybAbO938neIbJRaIvu1HnMx4FhJ3EJEiEkGmDl1S67CuUS1ci2Ytbf7Py_GYYyDr6K
+X-XSRF-TOKEN: {{csrfToken}}
 
 {
   "email": "user@example.com",
@@ -19,79 +25,408 @@ X-XSRF-TOKEN: t0709uRWRRQkIxcRK03R4hyOJ9wk4_ybAbO938neIbJRaIvu1HnMx4FhJ3EJEiEkGm
 ### POST Login with already existing admin
 POST http://localhost:8080/login
 Content-Type: application/x-www-form-urlencoded
-X-XSRF-TOKEN: t0709uRWRRQkIxcRK03R4hyOJ9wk4_ybAbO938neIbJRaIvu1HnMx4FhJ3EJEiEkGmDl1S67CuUS1ci2Ytbf7Py_GYYyDr6K
+X-XSRF-TOKEN: {{csrfToken}}
 
 email=admin@example.com&password=Password
 
 ### POST Login with registered user
 POST http://localhost:8080/login
 Content-Type: application/x-www-form-urlencoded
-X-XSRF-TOKEN: t0709uRWRRQkIxcRK03R4hyOJ9wk4_ybAbO938neIbJRaIvu1HnMx4FhJ3EJEiEkGmDl1S67CuUS1ci2Ytbf7Py_GYYyDr6K
+X-XSRF-TOKEN: {{csrfToken}}
 
 email=user@example.com&password=password123
 
-### USER ENDPOINT - USER + ADMIN - Login Required
+### GET USER ENDPOINT - USER + ADMIN - Login Required
 GET http://localhost:8080/api/user
 
-### Logout
-POST http://localhost:8080/logout
-X-XSRF-TOKEN: PhoOjJjfI6lGMr9IKH1lDe7pHQg7ejxDr8SJEmWYqO67c55dB382uanrGs1rVN1wG1BRPoiIMGoOSw5uy_DvI1b7zYiIF_pr
-
-
-### ADMIN ENDPOINT - ADMIN ONLY - Login Required
+### GET ADMIN ENDPOINT - ADMIN ONLY - Login Required
 GET http://localhost:8080/api/admin
 
-### Register a Patient - Login and CSRF Required
+### POST Logout - Login + CSRF Required
+POST http://localhost:8080/logout
+X-XSRF-TOKEN: {{csrfToken}}
+
+
+### ============================================================
+### PATIENT API
+### ============================================================
+
+### POST Register a Patient - Login + CSRF Required
 POST http://localhost:8080/api/patients
-X-XSRF-TOKEN:
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1995-05-15",
+  "gender": "MALE",
+  "phoneNumber": "0712345678",
+  "address": "Nairobi"
+}
 
 ### GET ALL Patients - Login Required
 GET http://localhost:8080/api/patients
 
-### GET  Patient by ID - Login Required
-GET http://localhost:8080/api/patients/1
+### GET Patient by ID - Login Required
+### patientId must be a valid UUIDv7 returned when the patient was created.
+GET http://localhost:8080/api/patients/{{patientId}}
 
-### UPDATE Patient - Login and CSRF Required
-PUT http://localhost:8080/api/patients/1
-X-XSRF-TOKEN:
+### GET Search Patient By Phone Number - Login Required
+### Pass the phone number as a request parameter.
+GET http://localhost:8080/api/patients/search?phoneNumber={{phoneNumber}}
 
-### DELETE Patient - Login and CSRF Required
-DELETE http://localhost:8080/api/patients/1
-X-XSRF-TOKEN:
-
-### Search Patient By PhoneNumber - Login, CSRF, and pass request param
-GET http://localhost:8080/api/patients/search
-
-### Search Patient By PhoneNumber - Login, CSRF and pass phone number as PathVariable
+### GET Search Patient By Phone Number - Login Required
+### Pass the phone number as a path variable.
 GET http://localhost:8080/api/patients/phone/{{phoneNumber}}
 
-### Get Encounter by ID - Login, CSRF and pass encounter Id as PathVariable
-GET http://localhost:8080/api/encounters/{{encounterId}}/
+### PUT Update Patient - Login + CSRF Required
+PUT http://localhost:8080/api/patients/{{patientId}}
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Get Encounter by Patient ID - Login, CSRF and pass patient Id as PathVariable
-POST http://localhost:8080/api/encounters/{{patientId}}/
+{
+  "firstName": "John",
+  "lastName": "Updated",
+  "dateOfBirth": "1995-05-15",
+  "gender": "MALE",
+  "phoneNumber": "0712345678",
+  "address": "Updated Address"
+}
 
-### Get Encounter by ID - Login, CSRF and pass encounter Id as PathVariable
+### DELETE Patient - Login + CSRF Required
+DELETE http://localhost:8080/api/patients/{{patientId}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+
+### ============================================================
+### PATIENT ERROR / VALIDATION TESTS
+### ============================================================
+
+### POST Register Patient with invalid data
+### Expected: 400 Bad Request
+POST http://localhost:8080/api/patients
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "firstName": "",
+  "lastName": "",
+  "dateOfBirth": null,
+  "gender": null,
+  "phoneNumber": "",
+  "address": ""
+}
+
+### POST Register Patient with duplicate phone number
+### Expected: 409 Conflict
+POST http://localhost:8080/api/patients
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "firstName": "Another",
+  "lastName": "Patient",
+  "dateOfBirth": "1990-01-01",
+  "gender": "MALE",
+  "phoneNumber": "0712345678",
+  "address": "Nairobi"
+}
+
+### GET Patient with non-existent ID
+### Expected: 404 Not Found
+GET http://localhost:8080/api/patients/{{nonExistentPatientId}}
+
+### GET Patient search without phone number
+### Expected: 400 Bad Request
+GET http://localhost:8080/api/patients/search
+
+### GET Patient search with blank phone number
+### Expected: 400 Bad Request
+GET http://localhost:8080/api/patients/search?phoneNumber=
+
+### GET Patient by non-existent phone number
+### Expected: 404 Not Found
+GET http://localhost:8080/api/patients/phone/0799999999
+
+### PUT Update non-existent patient
+### Expected: 404 Not Found
+PUT http://localhost:8080/api/patients/{{nonExistentPatientId}}
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "firstName": "Updated",
+  "lastName": "Patient",
+  "dateOfBirth": "1995-05-15",
+  "gender": "MALE",
+  "phoneNumber": "0799999998",
+  "address": "Nairobi"
+}
+
+### DELETE non-existent patient
+### Expected: 404 Not Found
+DELETE http://localhost:8080/api/patients/{{nonExistentPatientId}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+
+### ============================================================
+### ENCOUNTER API
+### ============================================================
+
+### POST Start Encounter for Patient - Login + CSRF Required
+### patientId must belong to an existing patient.
+### Expected: 201 Created
+POST http://localhost:8080/api/encounters/{{patientId}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+### GET Encounter by ID - Login Required
+### encounterId must be a valid UUIDv7.
+GET http://localhost:8080/api/encounters/{{encounterId}}
+
+### POST Discharge Encounter by ID - Login + CSRF Required
+### Expected: 200 OK
+### Encounter status should change from ACTIVE to DISCHARGED.
 POST http://localhost:8080/api/encounters/{{encounterId}}/discharge
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Cancel Encounter by ID - Login, CSRF and pass encounter Id as PathVariable
-POST http://localhost:8080/api/encounters/{{encounterId}}/cancel
+### POST Cancel Encounter by ID - Login + CSRF Required
+### Use an ACTIVE encounter for this test.
+### Expected: 200 OK
+### Encounter status should change from ACTIVE to CANCELLED.
+POST http://localhost:8080/api/encounters/{{activeEncounterId}}/cancel
+X-XSRF-TOKEN: {{csrfToken}}
 
 
-### Create Medical Record - Login, CSRF and pass encounter Id as PathVariable
+### ============================================================
+### ENCOUNTER ERROR TESTS
+### ============================================================
+
+### POST Start Encounter for non-existent patient
+### Expected: depends on current application-level handling.
+POST http://localhost:8080/api/encounters/{{nonExistentPatientId}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+### GET Encounter with non-existent ID
+### Expected: 404 Not Found
+GET http://localhost:8080/api/encounters/{{nonExistentEncounterId}}
+
+### POST Discharge an already discharged encounter
+### Expected: 409 Conflict
+POST http://localhost:8080/api/encounters/{{dischargedEncounterId}}/discharge
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Cancel an already cancelled encounter
+### Expected: 409 Conflict
+POST http://localhost:8080/api/encounters/{{cancelledEncounterId}}/cancel
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Cancel an already discharged encounter
+### Expected: 409 Conflict
+POST http://localhost:8080/api/encounters/{{dischargedEncounterId}}/cancel
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Discharge an already cancelled encounter
+### Expected: 409 Conflict
+POST http://localhost:8080/api/encounters/{{cancelledEncounterId}}/discharge
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Discharge non-existent encounter
+### Expected: 404 Not Found
+POST http://localhost:8080/api/encounters/{{nonExistentEncounterId}}/discharge
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Cancel non-existent encounter
+### Expected: 404 Not Found
+POST http://localhost:8080/api/encounters/{{nonExistentEncounterId}}/cancel
+X-XSRF-TOKEN: {{csrfToken}}
+
+
+### ============================================================
+### MEDICAL RECORD API
+### ============================================================
+
+### POST Create Medical Record for an Encounter
+### Login + CSRF Required
+### The encounter must already exist.
+### Expected: 201 Created
 POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Get Medical Record - Login, CSRF and pass encounter Id as PathVariable
+### GET Medical Record belonging to an Encounter
+### Login Required
+### Expected: 200 OK
 GET http://localhost:8080/api/encounters/{{encounterId}}/medical-record
 
-### Adds vital a medical record belonging to the encounter - Login, CSRF and pass encounter Id as PathVariable
-POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/vitals
+### POST Add Vital to Medical Record
+### Login + CSRF Required
+### type must be a valid VitalType enum value.
+### value contains the measured value.
+### unit contains the measurement unit.
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/vitals?type={{vitalType}}&value={{vitalValue}}&unit={{vitalUnit}}
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Adds clinical observation to the medical record belonging to the encounter - Login, CSRF and pass encounter Id as PathVariable
+### POST Add Clinical Observation to Medical Record
+### Login + CSRF Required
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/observations?description={{observation}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Diagnosis to Medical Record
+### Login + CSRF Required
+### type must be a valid DiagnosisType enum value.
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/diagnoses?description={{diagnosisDescription}}&type={{diagnosisType}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Treatment to Medical Record
+### Login + CSRF Required
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/treatments?description={{treatment}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+
+### ============================================================
+### MEDICAL RECORD ERROR TESTS
+### ============================================================
+
+### POST Create Medical Record for non-existent encounter
+### Expected: 404 Not Found
+POST http://localhost:8080/api/encounters/{{nonExistentEncounterId}}/medical-record
+X-XSRF-TOKEN: {{csrfToken}}
+
+### GET Medical Record for encounter without a medical record
+### Expected: 404 Not Found
+GET http://localhost:8080/api/encounters/{{encounterWithoutMedicalRecordId}}/medical-record
+
+### GET Medical Record for non-existent encounter
+### Expected: 404 Not Found
+GET http://localhost:8080/api/encounters/{{nonExistentEncounterId}}/medical-record
+
+### POST Create a second Medical Record for the same Encounter
+### Expected: 409 Conflict
+### The database enforces one medical record per encounter.
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Vital to an Encounter without a Medical Record
+### Expected: 404 Not Found
+POST http://localhost:8080/api/encounters/{{encounterWithoutMedicalRecordId}}/medical-record/vitals?type={{vitalType}}&value={{vitalValue}}&unit={{vitalUnit}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Observation to an Encounter without a Medical Record
+### Expected: 404 Not Found
+POST http://localhost:8080/api/encounters/{{encounterWithoutMedicalRecordId}}/medical-record/observations?description={{observation}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Diagnosis to an Encounter without a Medical Record
+### Expected: 404 Not Found
+POST http://localhost:8080/api/encounters/{{encounterWithoutMedicalRecordId}}/medical-record/diagnoses?description={{diagnosisDescription}}&type={{diagnosisType}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Treatment to an Encounter without a Medical Record
+### Expected: 404 Not Found
+POST http://localhost:8080/api/encounters/{{encounterWithoutMedicalRecordId}}/medical-record/treatments?description={{treatment}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+
+### ============================================================
+### MEDICAL RECORD VALIDATION TESTS
+### ============================================================
+
+### POST Add Vital with missing type
+### Expected: 400 Bad Request
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/vitals?value=120&unit=mmHg
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Vital with missing value
+### Expected: 400 Bad Request
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/vitals?type={{vitalType}}&unit=mmHg
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Vital with missing unit
+### Expected: 400 Bad Request
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/vitals?type={{vitalType}}&value=120
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Observation with missing description
+### Expected: depends on current domain validation.
 POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/observations
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Adds diagnosis to the medical record belonging to the encounter - Login, CSRF and pass encounter Id as PathVariable
-POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/diagnoses
+### POST Add Diagnosis with missing description
+### Expected: depends on current domain validation.
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/diagnoses?type={{diagnosisType}}
+X-XSRF-TOKEN: {{csrfToken}}
 
-### Adds treatment to the medical record belonging to the encounter - Login, CSRF and pass encounter Id as PathVariable
+### POST Add Diagnosis with missing type
+### Expected: 400 Bad Request
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/diagnoses?description={{diagnosisDescription}}
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Add Treatment with missing description
+### Expected: depends on current domain validation.
 POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/treatments
+X-XSRF-TOKEN: {{csrfToken}}
+
+
+### ============================================================
+### AUTHORIZATION TESTS
+### ============================================================
+
+### GET User endpoint without login
+### Expected: 401 Unauthorized or 403 Forbidden,
+### depending on the current Spring Security configuration.
+GET http://localhost:8080/api/user
+
+### GET Admin endpoint as normal user
+### Expected: 403 Forbidden
+GET http://localhost:8080/api/admin
+
+### GET Patient endpoint without login
+### Expected: 401 Unauthorized or 403 Forbidden,
+### depending on the current Spring Security configuration.
+GET http://localhost:8080/api/patients
+
+### GET Encounter endpoint without login
+### Expected: 401 Unauthorized or 403 Forbidden,
+### depending on the current Spring Security configuration.
+GET http://localhost:8080/api/encounters/{{encounterId}}
+
+### GET Medical Record endpoint without login
+### Expected: 401 Unauthorized or 403 Forbidden,
+### depending on the current Spring Security configuration.
+GET http://localhost:8080/api/encounters/{{encounterId}}/medical-record
+
+
+### ============================================================
+### CSRF TESTS
+### ============================================================
+
+### POST Start Encounter without CSRF token
+### Expected: 403 Forbidden
+POST http://localhost:8080/api/encounters/{{patientId}}
+
+### POST Create Medical Record without CSRF token
+### Expected: 403 Forbidden
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record
+
+### POST Add Vital without CSRF token
+### Expected: 403 Forbidden
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/vitals?type={{vitalType}}&value={{vitalValue}}&unit={{vitalUnit}}
+
+### PUT Update Patient without CSRF token
+### Expected: 403 Forbidden
+PUT http://localhost:8080/api/patients/{{patientId}}
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Updated",
+  "dateOfBirth": "1995-05-15",
+  "gender": "MALE",
+  "phoneNumber": "0712345678",
+  "address": "Updated Address"
+}
+
+### DELETE Patient without CSRF token
+### Expected: 403 Forbidden
+DELETE http://localhost:8080/api/patients/{{patientId}}
+```
