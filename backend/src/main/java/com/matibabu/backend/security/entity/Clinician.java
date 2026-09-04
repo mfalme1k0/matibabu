@@ -2,6 +2,8 @@ package com.matibabu.backend.security.entity;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
 
@@ -9,6 +11,7 @@ import java.util.UUID;
 @Table(name = "clinicians")
 public class Clinician {
     @Id
+    @JdbcTypeCode(SqlTypes.CHAR)
     private UUID id = UuidCreator.getTimeOrderedEpoch();
 
     private String email;
