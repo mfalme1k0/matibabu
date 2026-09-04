@@ -2,28 +2,96 @@
 GET http://localhost:8080/
 
 ### GET Obtain CSRF token to add to headers for other requests
+### Request a CSRF token before state-changing requests (POST, PUT, PATCH, DELETE, and logout).
+### Only repeat this request if you do not already have a valid XSRF-TOKEN or the request returns 403 due to CSRF.
 GET http://localhost:8080/csrf
 
 ### POST Register New User - no login required
 POST http://localhost:8080/auth/register
 Content-Type: application/json
-X-XSRF-TOKEN: pE2x_SlJJXaTRZnVy1aVsC1c1fi1-FV_U05xsiJc6qGWLZRIlHyAzU8rEEC-d_zh-nuh0hw_-JnTnGNSMX1AghNqjMCgH6J_
+X-XSRF-TOKEN: t0709uRWRRQkIxcRK03R4hyOJ9wk4_ybAbO938neIbJRaIvu1HnMx4FhJ3EJEiEkGmDl1S67CuUS1ci2Ytbf7Py_GYYyDr6K
 
 {
   "email": "user@example.com",
   "password": "password123"
 }
 
+### POST Login with already existing admin
+POST http://localhost:8080/login
+Content-Type: application/x-www-form-urlencoded
+X-XSRF-TOKEN: t0709uRWRRQkIxcRK03R4hyOJ9wk4_ybAbO938neIbJRaIvu1HnMx4FhJ3EJEiEkGmDl1S67CuUS1ci2Ytbf7Py_GYYyDr6K
+
+email=admin@example.com&password=Password
+
 ### POST Login with registered user
 POST http://localhost:8080/login
 Content-Type: application/x-www-form-urlencoded
-X-XSRF-TOKEN: pE2x_SlJJXaTRZnVy1aVsC1c1fi1-FV_U05xsiJc6qGWLZRIlHyAzU8rEEC-d_zh-nuh0hw_-JnTnGNSMX1AghNqjMCgH6J_
+X-XSRF-TOKEN: t0709uRWRRQkIxcRK03R4hyOJ9wk4_ybAbO938neIbJRaIvu1HnMx4FhJ3EJEiEkGmDl1S67CuUS1ci2Ytbf7Py_GYYyDr6K
 
 email=user@example.com&password=password123
 
 ### USER ENDPOINT - USER + ADMIN - Login Required
 GET http://localhost:8080/api/user
 
+### Logout
+POST http://localhost:8080/logout
+X-XSRF-TOKEN: PhoOjJjfI6lGMr9IKH1lDe7pHQg7ejxDr8SJEmWYqO67c55dB382uanrGs1rVN1wG1BRPoiIMGoOSw5uy_DvI1b7zYiIF_pr
+
 
 ### ADMIN ENDPOINT - ADMIN ONLY - Login Required
 GET http://localhost:8080/api/admin
+
+### Register a Patient - Login and CSRF Required
+POST http://localhost:8080/api/patients
+X-XSRF-TOKEN:
+
+### GET ALL Patients - Login Required
+GET http://localhost:8080/api/patients
+
+### GET  Patient by ID - Login Required
+GET http://localhost:8080/api/patients/1
+
+### UPDATE Patient - Login and CSRF Required
+PUT http://localhost:8080/api/patients/1
+X-XSRF-TOKEN:
+
+### DELETE Patient - Login and CSRF Required
+DELETE http://localhost:8080/api/patients/1
+X-XSRF-TOKEN:
+
+### Search Patient By PhoneNumber - Login, CSRF, and pass request param
+GET http://localhost:8080/api/patients/search
+
+### Search Patient By PhoneNumber - Login, CSRF and pass phone number as PathVariable
+GET http://localhost:8080/api/patients/phone/{{phoneNumber}}
+
+### Get Encounter by ID - Login, CSRF and pass encounter Id as PathVariable
+GET http://localhost:8080/api/encounters/{{encounterId}}/
+
+### Get Encounter by Patient ID - Login, CSRF and pass patient Id as PathVariable
+POST http://localhost:8080/api/encounters/{{patientId}}/
+
+### Get Encounter by ID - Login, CSRF and pass encounter Id as PathVariable
+POST http://localhost:8080/api/encounters/{{encounterId}}/discharge
+
+### Cancel Encounter by ID - Login, CSRF and pass encounter Id as PathVariable
+POST http://localhost:8080/api/encounters/{{encounterId}}/cancel
+
+
+### Create Medical Record - Login, CSRF and pass encounter Id as PathVariable
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record
+
+### Get Medical Record - Login, CSRF and pass encounter Id as PathVariable
+GET http://localhost:8080/api/encounters/{{encounterId}}/medical-record
+
+### Adds vital a medical record belonging to the encounter - Login, CSRF and pass encounter Id as PathVariable
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/vitals
+
+### Adds clinical observation to the medical record belonging to the encounter - Login, CSRF and pass encounter Id as PathVariable
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/observations
+
+### Adds diagnosis to the medical record belonging to the encounter - Login, CSRF and pass encounter Id as PathVariable
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/diagnoses
+
+### Adds treatment to the medical record belonging to the encounter - Login, CSRF and pass encounter Id as PathVariable
+POST http://localhost:8080/api/encounters/{{encounterId}}/medical-record/treatments

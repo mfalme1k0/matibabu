@@ -1,6 +1,6 @@
 -- CLINICIANS
 CREATE TABLE clinicians (
-        id BLOB PRIMARY KEY,
+        id CHAR(36) PRIMARY KEY,
         email VARCHAR(255) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(20) NOT NULL
