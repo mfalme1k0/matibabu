@@ -5,6 +5,8 @@ import com.matibabu.backend.domain.encounter.Encounter;
 import com.matibabu.backend.domain.encounter.EncounterRepository;
 import com.matibabu.backend.domain.medicalrecord.MedicalRecord;
 import com.matibabu.backend.domain.medicalrecord.MedicalRecordRepository;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -38,10 +40,12 @@ class CreateMedicalRecordServiceTest {
         when(medicalRecordRepository.save(any(MedicalRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
+        SyncOutboxRecorder syncOutboxRecorder = mock(SyncOutboxRecorder.class);
         CreateMedicalRecordService service =
                 new CreateMedicalRecordService(
                         medicalRecordRepository,
-                        encounterRepository
+                        encounterRepository,
+                        syncOutboxRecorder
                 );
 
         MedicalRecord result = service.create(encounterId);
@@ -52,6 +56,12 @@ class CreateMedicalRecordServiceTest {
 
         verify(encounterRepository).findById(encounterId);
         verify(medicalRecordRepository).save(any(MedicalRecord.class));
+        verify(syncOutboxRecorder).record(
+                eq(AggregateType.MEDICAL_RECORD),
+                eq(result.getId()),
+                eq("MedicalRecordCreated"),
+                any()
+        );
     }
 
     @Test
@@ -70,7 +80,8 @@ class CreateMedicalRecordServiceTest {
         CreateMedicalRecordService service =
                 new CreateMedicalRecordService(
                         medicalRecordRepository,
-                        encounterRepository
+                        encounterRepository,
+                        mock(SyncOutboxRecorder.class)
                 );
 
         assertThrows(

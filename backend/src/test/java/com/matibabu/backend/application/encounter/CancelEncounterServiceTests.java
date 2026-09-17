@@ -4,6 +4,8 @@ import com.matibabu.backend.exception.EncounterNotFoundException;
 import com.matibabu.backend.domain.encounter.Encounter;
 import com.matibabu.backend.domain.encounter.EncounterRepository;
 import com.matibabu.backend.domain.encounter.EncounterStatus;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -13,6 +15,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class CancelEncounterServiceTest {
 
@@ -75,13 +81,22 @@ class CancelEncounterServiceTest {
         repository.save(encounter);
 
         // Create the application service.
+        SyncOutboxRecorder syncOutboxRecorder = mock(SyncOutboxRecorder.class);
         CancelEncounterService service =
-                new CancelEncounterService(repository);
+                new CancelEncounterService(repository, syncOutboxRecorder);
 
         // Execute the cancellation use case.
         service.cancel(
                 encounter.getId(),
                 cancelledAt
+        );
+
+        // The service should have recorded a sync outbox entry.
+        verify(syncOutboxRecorder).record(
+                eq(AggregateType.ENCOUNTER),
+                eq(encounter.getId()),
+                eq("EncounterCancelled"),
+                any()
         );
 
         // The encounter should now be CANCELLED.
@@ -123,7 +138,7 @@ class CancelEncounterServiceTest {
                 new InMemoryEncounterRepository();
 
         CancelEncounterService service =
-                new CancelEncounterService(repository);
+                new CancelEncounterService(repository, mock(SyncOutboxRecorder.class));
 
         UUID encounterId = UUID.randomUUID();
 

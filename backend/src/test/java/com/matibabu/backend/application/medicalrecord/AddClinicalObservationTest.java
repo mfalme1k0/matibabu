@@ -3,6 +3,8 @@ package com.matibabu.backend.application.medicalrecord;
 import com.matibabu.backend.domain.medicalrecord.ClinicalObservation;
 import com.matibabu.backend.domain.medicalrecord.MedicalRecord;
 import com.matibabu.backend.domain.medicalrecord.MedicalRecordRepository;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -34,8 +36,9 @@ class AddClinicalObservationTest {
         when(repository.save(medicalRecord))
                 .thenReturn(medicalRecord);
 
+        SyncOutboxRecorder syncOutboxRecorder = mock(SyncOutboxRecorder.class);
         AddClinicalObservation addClinicalObservation =
-                new AddClinicalObservation(repository);
+                new AddClinicalObservation(repository, syncOutboxRecorder);
 
         String description =
                 "Patient is alert and responsive";
@@ -72,6 +75,14 @@ class AddClinicalObservationTest {
 
         // Verify that the updated medical record was persisted.
         verify(repository).save(medicalRecord);
+
+        // Verify that the addition was recorded for sync.
+        verify(syncOutboxRecorder).record(
+                eq(AggregateType.MEDICAL_RECORD),
+                eq(medicalRecordId),
+                eq("ClinicalObservationAdded"),
+                any()
+        );
     }
 
     @Test
@@ -87,7 +98,7 @@ class AddClinicalObservationTest {
                 .thenReturn(Optional.empty());
 
         AddClinicalObservation addClinicalObservation =
-                new AddClinicalObservation(repository);
+                new AddClinicalObservation(repository, mock(SyncOutboxRecorder.class));
 
         // Act & Assert
         IllegalArgumentException exception =

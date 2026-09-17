@@ -5,6 +5,8 @@ import com.matibabu.backend.domain.patient.Patient;
 import com.matibabu.backend.domain.patient.PatientRepository;
 import com.matibabu.backend.exception.DuplicatePhoneNumberException;
 import com.matibabu.backend.exception.PatientNotFoundException;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,6 +24,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +32,9 @@ class PatientServicesTest {
 
     @Mock
     private PatientRepository patientRepository;
+
+    @Mock
+    private SyncOutboxRecorder syncOutboxRecorder;
 
     private RegisterPatientService registerPatientService;
     private GetPatientService getPatientService;
@@ -39,11 +45,11 @@ class PatientServicesTest {
 
     @BeforeEach
     void setUp() {
-        registerPatientService = new RegisterPatientService(patientRepository);
+        registerPatientService = new RegisterPatientService(patientRepository, syncOutboxRecorder);
         getPatientService = new GetPatientService(patientRepository);
         listPatientsService = new ListPatientsService(patientRepository);
-        updatePatientService = new UpdatePatientService(patientRepository);
-        deletePatientService = new DeletePatientService(patientRepository);
+        updatePatientService = new UpdatePatientService(patientRepository, syncOutboxRecorder);
+        deletePatientService = new DeletePatientService(patientRepository, syncOutboxRecorder);
         searchPatientByPhoneNumberService = new SearchPatientByPhoneNumberService(patientRepository);
     }
 
@@ -72,6 +78,7 @@ class PatientServicesTest {
         assertEquals("Nairobi", patient.getAddress());
         verify(patientRepository).existsByPhoneNumber("+254712345678");
         verify(patientRepository).save(any(Patient.class));
+        verify(syncOutboxRecorder).record(eq(AggregateType.PATIENT), eq(patient.getId()), eq("PatientRegistered"), any());
     }
 
     @Test
@@ -92,6 +99,7 @@ class PatientServicesTest {
 
         verify(patientRepository).existsByPhoneNumber("+254712345678");
         verify(patientRepository, never()).save(any(Patient.class));
+        verifyNoInteractions(syncOutboxRecorder);
     }
 
     @Test
@@ -157,6 +165,7 @@ class PatientServicesTest {
         verify(patientRepository).findById(id);
         verify(patientRepository).findByPhoneNumber("+254700000000");
         verify(patientRepository).save(existing);
+        verify(syncOutboxRecorder).record(eq(AggregateType.PATIENT), eq(existing.getId()), eq("PatientUpdated"), any());
     }
 
     @Test
@@ -267,6 +276,7 @@ class PatientServicesTest {
 
         verify(patientRepository).existsById(id);
         verify(patientRepository).deleteById(id);
+        verify(syncOutboxRecorder).record(eq(AggregateType.PATIENT), eq(id), eq("PatientDeleted"), any());
     }
 
     @Test
