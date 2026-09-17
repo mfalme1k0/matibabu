@@ -4,6 +4,8 @@ import com.matibabu.backend.domain.medicalrecord.MedicalRecord;
 import com.matibabu.backend.domain.medicalrecord.MedicalRecordRepository;
 import com.matibabu.backend.domain.medicalrecord.Vital;
 import com.matibabu.backend.domain.medicalrecord.VitalType;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -47,8 +49,9 @@ class AddVitalTest {
                 .thenReturn(medicalRecord);
 
         // Create the service under test and inject the mocked repository.
+        SyncOutboxRecorder syncOutboxRecorder = mock(SyncOutboxRecorder.class);
         AddVital service =
-                new AddVital(medicalRecordRepository);
+                new AddVital(medicalRecordRepository, syncOutboxRecorder);
 
         /*
          * Execute the operation.
@@ -106,6 +109,14 @@ class AddVitalTest {
          */
         verify(medicalRecordRepository)
                 .save(medicalRecord);
+
+        // Verify that the addition was recorded for sync.
+        verify(syncOutboxRecorder).record(
+                eq(AggregateType.MEDICAL_RECORD),
+                eq(medicalRecordId),
+                eq("VitalAdded"),
+                any()
+        );
     }
 
     @Test
@@ -127,7 +138,7 @@ class AddVitalTest {
 
         // Create the service using the mocked repository.
         AddVital service =
-                new AddVital(medicalRecordRepository);
+                new AddVital(medicalRecordRepository, mock(SyncOutboxRecorder.class));
 
         /*
          * The service should reject the operation because

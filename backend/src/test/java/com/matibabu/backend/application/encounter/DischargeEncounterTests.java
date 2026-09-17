@@ -4,6 +4,8 @@ import com.matibabu.backend.exception.EncounterNotFoundException;
 import com.matibabu.backend.domain.encounter.Encounter;
 import com.matibabu.backend.domain.encounter.EncounterRepository;
 import com.matibabu.backend.domain.encounter.EncounterStatus;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -13,6 +15,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class DischargeEncounterServiceTest {
 
@@ -68,13 +74,22 @@ class DischargeEncounterServiceTest {
         repository.save(encounter);
 
         // Create the application service.
+        SyncOutboxRecorder syncOutboxRecorder = mock(SyncOutboxRecorder.class);
         DischargeEncounterService service =
-                new DischargeEncounterService(repository);
+                new DischargeEncounterService(repository, syncOutboxRecorder);
 
         // Execute the use case.
         service.discharge(
                 encounter.getId(),
                 dischargedAt
+        );
+
+        // The service should have recorded a sync outbox entry.
+        verify(syncOutboxRecorder).record(
+                eq(AggregateType.ENCOUNTER),
+                eq(encounter.getId()),
+                eq("EncounterDischarged"),
+                any()
         );
 
         // Verify that the domain operation happened.
@@ -108,7 +123,7 @@ class DischargeEncounterServiceTest {
                 new InMemoryEncounterRepository();
 
         DischargeEncounterService service =
-                new DischargeEncounterService(repository);
+                new DischargeEncounterService(repository, mock(SyncOutboxRecorder.class));
 
         UUID encounterId = UUID.randomUUID();
 

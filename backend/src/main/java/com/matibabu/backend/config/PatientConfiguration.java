@@ -2,6 +2,7 @@ package com.matibabu.backend.config;
 
 import com.matibabu.backend.application.patient.*;
 import com.matibabu.backend.domain.patient.PatientRepository;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -10,9 +11,10 @@ public class PatientConfiguration {
 
     @Bean
     public RegisterPatientUseCase registerPatientUseCase(
-            PatientRepository patientRepository
+            PatientRepository patientRepository,
+            SyncOutboxRecorder syncOutboxRecorder
     ) {
-        return new RegisterPatientService(patientRepository);
+        return new RegisterPatientService(patientRepository, syncOutboxRecorder);
     }
 
     @Bean
@@ -31,16 +33,18 @@ public class PatientConfiguration {
 
     @Bean
     public UpdatePatientUseCase updatePatientUseCase(
-            PatientRepository patientRepository
+            PatientRepository patientRepository,
+            SyncOutboxRecorder syncOutboxRecorder
     ) {
-        return new UpdatePatientService(patientRepository);
+        return new UpdatePatientService(patientRepository, syncOutboxRecorder);
     }
 
     @Bean
     public DeletePatientUseCase deletePatientUseCase(
-            PatientRepository patientRepository
+            PatientRepository patientRepository,
+            SyncOutboxRecorder syncOutboxRecorder
     ) {
-        return new DeletePatientService(patientRepository);
+        return new DeletePatientService(patientRepository, syncOutboxRecorder);
     }
 
     @Bean

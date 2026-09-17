@@ -4,6 +4,8 @@ import com.matibabu.backend.config.NodeIdentity;
 import com.matibabu.backend.domain.encounter.Encounter;
 import com.matibabu.backend.domain.encounter.EncounterRepository;
 import com.matibabu.backend.domain.encounter.EncounterStatus;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -13,6 +15,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class StartEncounterServiceTest {
 
@@ -66,8 +72,9 @@ class StartEncounterServiceTest {
                 new InMemoryEncounterRepository();
 
         // Create the application service.
+        SyncOutboxRecorder syncOutboxRecorder = mock(SyncOutboxRecorder.class);
         StartEncounterService service =
-                new StartEncounterService(repository, new NodeIdentity("facility", facilityId.toString()));
+                new StartEncounterService(repository, new NodeIdentity("facility", facilityId.toString()), syncOutboxRecorder);
 
         // Execute the start encounter use case.
         Encounter encounter =
@@ -121,6 +128,14 @@ class StartEncounterServiceTest {
         assertEquals(
                 encounter.getId(),
                 savedEncounter.getId()
+        );
+
+        // The service should have recorded a sync outbox entry.
+        verify(syncOutboxRecorder).record(
+                eq(AggregateType.ENCOUNTER),
+                eq(encounter.getId()),
+                eq("EncounterStarted"),
+                any()
         );
     }
 

@@ -4,6 +4,8 @@ import com.matibabu.backend.domain.medicalrecord.Diagnosis;
 import com.matibabu.backend.domain.medicalrecord.DiagnosisType;
 import com.matibabu.backend.domain.medicalrecord.MedicalRecord;
 import com.matibabu.backend.domain.medicalrecord.MedicalRecordRepository;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -32,8 +34,9 @@ class AddDiagnosisTest {
         when(repository.save(medicalRecord))
                 .thenReturn(medicalRecord);
 
+        SyncOutboxRecorder syncOutboxRecorder = mock(SyncOutboxRecorder.class);
         AddDiagnosis addDiagnosis =
-                new AddDiagnosis(repository);
+                new AddDiagnosis(repository, syncOutboxRecorder);
 
         String description = "Malaria";
         DiagnosisType type = DiagnosisType.CONFIRMED;
@@ -67,6 +70,14 @@ class AddDiagnosisTest {
 
         // Verify that the updated medical record was saved.
         verify(repository).save(medicalRecord);
+
+        // Verify that the addition was recorded for sync.
+        verify(syncOutboxRecorder).record(
+                eq(AggregateType.MEDICAL_RECORD),
+                eq(medicalRecordId),
+                eq("DiagnosisAdded"),
+                any()
+        );
     }
 
     @Test
@@ -81,7 +92,7 @@ class AddDiagnosisTest {
                 .thenReturn(java.util.Optional.empty());
 
         AddDiagnosis addDiagnosis =
-                new AddDiagnosis(repository);
+                new AddDiagnosis(repository, mock(SyncOutboxRecorder.class));
 
         // Act & Assert
         IllegalArgumentException exception =

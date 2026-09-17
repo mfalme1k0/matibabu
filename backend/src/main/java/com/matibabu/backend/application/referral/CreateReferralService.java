@@ -11,9 +11,14 @@ import com.matibabu.backend.domain.referral.ReferralUrgency;
 import com.matibabu.backend.exception.EncounterNotFoundException;
 import com.matibabu.backend.exception.FacilityNotFoundException;
 import com.matibabu.backend.exception.InvalidDiagnosisReferenceException;
+import com.matibabu.backend.synchronization.outbox.AggregateType;
+import com.matibabu.backend.synchronization.outbox.SyncOutboxRecorder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -23,20 +28,24 @@ public class CreateReferralService implements CreateReferralUseCase {
     private final EncounterRepository encounterRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final FacilityRepository facilityRepository;
+    private final SyncOutboxRecorder syncOutboxRecorder;
 
     public CreateReferralService(
             ReferralRepository referralRepository,
             EncounterRepository encounterRepository,
             MedicalRecordRepository medicalRecordRepository,
-            FacilityRepository facilityRepository
+            FacilityRepository facilityRepository,
+            SyncOutboxRecorder syncOutboxRecorder
     ) {
         this.referralRepository = referralRepository;
         this.encounterRepository = encounterRepository;
         this.medicalRecordRepository = medicalRecordRepository;
         this.facilityRepository = facilityRepository;
+        this.syncOutboxRecorder = syncOutboxRecorder;
     }
 
     @Override
+    @Transactional
     public Referral create(
             UUID encounterId,
             UUID referringClinicianId,
@@ -76,6 +85,19 @@ public class CreateReferralService implements CreateReferralUseCase {
                 Instant.now()
         );
 
-        return referralRepository.save(referral);
+        Referral saved = referralRepository.save(referral);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("encounterId", encounterId.toString());
+        payload.put("referringClinicianId", referringClinicianId.toString());
+        payload.put("diagnosisId", diagnosisId != null ? diagnosisId.toString() : null);
+        payload.put("reason", reason);
+        payload.put("urgency", urgency != null ? urgency.name() : null);
+        payload.put("receivingFacilityId", receivingFacilityId.toString());
+        payload.put("department", department);
+
+        syncOutboxRecorder.record(AggregateType.REFERRAL, saved.getId(), "ReferralCreated", payload);
+
+        return saved;
     }
 }
