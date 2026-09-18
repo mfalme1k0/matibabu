@@ -11,6 +11,8 @@ public interface SpringDataDepartmentsRepository
 
     List<DepartmentEntity> findByFacilityId(UUID facilityId);
 
+    List<DepartmentEntity> findByFacilityIdAndActiveTrue(UUID facilityId);
+
     Optional<DepartmentEntity> findByFacilityIdAndCode(
             UUID facilityId,
             String code

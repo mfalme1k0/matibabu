@@ -13,6 +13,8 @@ public interface DepartmentRepository {
 
     List<Department> findByFacilityId(UUID facilityId);
 
+    List<Department> findAllActive(UUID facilityId);
+
     Optional<Department> findByFacilityIdAndCode(
             UUID facilityId,
             String code

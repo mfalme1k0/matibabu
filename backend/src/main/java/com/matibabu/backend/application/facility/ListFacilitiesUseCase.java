@@ -7,7 +7,10 @@ import java.util.UUID;
 
 public interface ListFacilitiesUseCase {
 
+
     Facility getById(UUID id);
+
+
 
     List<Facility> listActive();
 

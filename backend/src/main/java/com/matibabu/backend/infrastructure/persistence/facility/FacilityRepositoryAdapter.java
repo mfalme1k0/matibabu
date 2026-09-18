@@ -63,4 +63,9 @@ public class FacilityRepositoryAdapter implements FacilityRepository {
                 .map(mapper::toDomain)
                 .toList();
     }
+
+    @Override
+    public boolean existsById(UUID facilityId) {
+        return false;
+    }
 }

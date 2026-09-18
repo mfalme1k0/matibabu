@@ -17,4 +17,6 @@ public interface FacilityRepository {
     List<Facility> findAllActive();
 
     List<Facility> search(String query);
+
+    boolean existsById(UUID facilityId);
 }

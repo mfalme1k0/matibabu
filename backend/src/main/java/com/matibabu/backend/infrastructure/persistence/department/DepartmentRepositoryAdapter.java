@@ -67,4 +67,12 @@ public class DepartmentRepositoryAdapter
                 code
         );
     }
+
+    @Override
+    public List<Department> findAllActive(UUID facilityId) {
+        return jpaRepository.findByFacilityIdAndActiveTrue(facilityId)
+                .stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
 }
