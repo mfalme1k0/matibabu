@@ -10,8 +10,6 @@ public interface ListFacilitiesUseCase {
 
     Facility getById(UUID id);
 
-
-
     List<Facility> listActive();
 
     List<Facility> search(String query);
