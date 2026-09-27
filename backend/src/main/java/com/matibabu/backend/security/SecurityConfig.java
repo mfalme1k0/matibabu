@@ -44,7 +44,7 @@ public class SecurityConfig {
 
                 )
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-//                .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+               .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                                 .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                                 .requestMatchers(ADMIN_ENDPOINTS).hasAnyRole("ADMIN", "SUPER_ADMIN")
                                 .requestMatchers(USER_ENDPOINTS).hasAnyRole("USER", "ADMIN", "SUPER_ADMIN")

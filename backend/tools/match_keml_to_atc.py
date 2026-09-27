@@ -52,13 +52,7 @@ MATCH_THRESHOLD = 0.92  # similarity above which we trust an auto-match
 
 
 def uuid7() -> str:
-    """
-    Generates a UUIDv7 (time-ordered): 48-bit millisecond timestamp
-    prefix + random tail. Matches the ID scheme the app already uses
-    via UuidCreator.getTimeOrderedEpoch() in Medicine.java — keeps a
-    bulk seed insert index-friendly instead of scattering rows
-    randomly through the primary key like UUIDv4 would.
-    """
+
     unix_ts_ms = int(time.time() * 1000)
     rand = os.urandom(10)
 
