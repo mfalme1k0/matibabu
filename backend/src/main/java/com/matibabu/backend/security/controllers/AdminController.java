@@ -20,22 +20,15 @@ public class AdminController {
 
     @PostMapping("/clinicians/{id}/promote")
     public ResponseEntity<?> promoteToAdmin(@PathVariable UUID id) {
-        try {
-            Clinician clinician =
-                    clinicianService.promoteToAdmin(id);
+        Clinician clinician = clinicianService.promoteToAdmin(id);
 
-            return ResponseEntity.ok(
-                    Map.of(
-                            "message", "Clinician promoted to ADMIN",
-                            "id", clinician.getId(),
-                            "email", clinician.getEmail(),
-                            "role", clinician.getRole().name()
-                    )
-            );
-
-        } catch (Exception e) {
-            return ResponseEntity.notFound()
-                    .build();
-        }
+        return ResponseEntity.ok(
+                Map.of(
+                        "message", "Clinician promoted to ADMIN",
+                        "id", clinician.getId(),
+                        "email", clinician.getEmail(),
+                        "role", clinician.getRole().name()
+                )
+        );
     }
 }

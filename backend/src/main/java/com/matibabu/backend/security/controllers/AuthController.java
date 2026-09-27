@@ -27,24 +27,16 @@ public class AuthController {
     public ResponseEntity<?> register(
             @Valid @RequestBody RegistrationRequest registrationRequest) {
 
-        try {
-            Clinician clinician = clinicianService.registerClinician(registrationRequest);
+        Clinician clinician = clinicianService.registerClinician(registrationRequest);
 
-            return ResponseEntity
-                    .status(HttpStatus.CREATED)
-                    .body(
-                            Map.of(
-                                    "message", "Clinician registered successfully",
-                                    "email", clinician.getEmail(),
-                                    "role", clinician.getRole().name()
-                            )
-                    );
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                    Map.of(
-                            "error",
-                            e.getMessage()
-                    ));
-        }
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(
+                        Map.of(
+                                "message", "Clinician registered successfully",
+                                "email", clinician.getEmail(),
+                                "role", clinician.getRole().name()
+                        )
+                );
     }
 }
