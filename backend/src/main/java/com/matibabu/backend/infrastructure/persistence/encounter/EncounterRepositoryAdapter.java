@@ -8,12 +8,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public class EncounterReposiroryAdapter implements EncounterRepository {
+public class EncounterRepositoryAdapter implements EncounterRepository {
 
     private final SpringDataEncounterRepository jpaRepository;
     private final EncounterMapper mapper;
 
-    public EncounterReposiroryAdapter(
+    public EncounterRepositoryAdapter(
             SpringDataEncounterRepository jpaRepository,
             EncounterMapper mapper
     ) {

@@ -6,7 +6,7 @@ import com.matibabu.backend.domain.encounter.EncounterRepository;
 import com.matibabu.backend.domain.encounter.EncounterStatus;
 import com.matibabu.backend.infrastructure.persistence.encounter.EncounterEntity;
 import com.matibabu.backend.infrastructure.persistence.encounter.EncounterMapperImpl;
-import com.matibabu.backend.infrastructure.persistence.encounter.EncounterReposiroryAdapter;
+import com.matibabu.backend.infrastructure.persistence.encounter.EncounterRepositoryAdapter;
 import com.matibabu.backend.infrastructure.persistence.encounter.SpringDataEncounterRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
-        EncounterReposiroryAdapter.class,
+        EncounterRepositoryAdapter.class,
         EncounterMapperImpl.class
 })
 class EncounterRepositoryAdapterTests {

@@ -1,6 +1,7 @@
 package com.matibabu.backend.domain.encounter;
 
 import com.github.f4b6a3.uuid.UuidCreator;
+import com.matibabu.backend.exception.EncounterNotActiveException;
 
 import java.time.Instant;
 import java.util.Objects;
