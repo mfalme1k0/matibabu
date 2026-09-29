@@ -1,9 +1,12 @@
 package com.matibabu.backend.security;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
@@ -18,6 +21,8 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
         matchIfMissing = true
 )
 public class SecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     // URLs that don't require login
     private static final String[] PUBLIC_ENDPOINTS = {
@@ -39,16 +44,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // Uses the CorsConfigurationSource bean from CorsConfig.
+                .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-
                 )
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-               .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                                .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                                .requestMatchers(ADMIN_ENDPOINTS).hasAnyRole("ADMIN", "SUPER_ADMIN")
-                                .requestMatchers(USER_ENDPOINTS).hasAnyRole("USER", "ADMIN", "SUPER_ADMIN")
-                                .anyRequest().authenticated()
+                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(ADMIN_ENDPOINTS).hasAnyRole("ADMIN", "SUPER_ADMIN")
+                        .requestMatchers(USER_ENDPOINTS).hasAnyRole("USER", "ADMIN", "SUPER_ADMIN")
+                        .anyRequest().authenticated()
                 )
                 // Handled automatically by Spring Security
                 .formLogin(formLogin -> formLogin
@@ -56,13 +61,11 @@ public class SecurityConfig {
                         .usernameParameter("email")
                         .passwordParameter("password")
                         .successHandler((request, response, authentication) -> {
-                            System.out.println("LOGIN SUCCESS: " + authentication.getName());
-
+                            log.info("Login succeeded for {}", authentication.getName());
                             response.setStatus(HttpServletResponse.SC_OK);
                         })
                         .failureHandler((request, response, exception) -> {
-                            System.out.println("LOGIN FAILED: " + exception.getMessage());
-
+                            log.warn("Login failed: {}", exception.getMessage());
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                         }))
                 .httpBasic(AbstractHttpConfigurer::disable)
