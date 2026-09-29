@@ -3,10 +3,13 @@ package com.matibabu.backend.application.patient;
 import com.matibabu.backend.domain.patient.Patient;
 import com.matibabu.backend.domain.patient.PatientRepository;
 import com.matibabu.backend.exception.PatientNotFoundException;
+import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
+@Service
+
 
 public class SearchPatientByPhoneNumberService implements SearchPatientByPhoneNumberUseCase {
 

@@ -4,8 +4,10 @@ import com.matibabu.backend.domain.patient.Gender;
 import com.matibabu.backend.domain.patient.Patient;
 import com.matibabu.backend.domain.patient.PatientRepository;
 import com.matibabu.backend.exception.DuplicatePhoneNumberException;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+@Service
 
 public class RegisterPatientService implements RegisterPatientUseCase {
 

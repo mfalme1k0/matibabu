@@ -2,8 +2,10 @@ package com.matibabu.backend.application.patient;
 
 import com.matibabu.backend.domain.patient.PatientRepository;
 import com.matibabu.backend.exception.PatientNotFoundException;
+import org.springframework.stereotype.Service;
 
 import java.util.UUID;
+@Service
 
 public class DeletePatientService implements DeletePatientUseCase {
 

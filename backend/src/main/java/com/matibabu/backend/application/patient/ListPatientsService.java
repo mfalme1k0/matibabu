@@ -4,6 +4,9 @@ import com.matibabu.backend.domain.patient.Patient;
 import com.matibabu.backend.domain.patient.PatientRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+@Service
 
 public class ListPatientsService implements ListPatientsUseCase {
 
