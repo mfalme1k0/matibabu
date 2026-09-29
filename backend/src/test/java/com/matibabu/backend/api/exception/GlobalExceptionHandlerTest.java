@@ -1,6 +1,6 @@
 package com.matibabu.backend.api.exception;
 
-import com.matibabu.backend.domain.encounter.EncounterNotActiveException;
+import com.matibabu.backend.exception.EncounterNotActiveException;
 import com.matibabu.backend.exception.ClinicianAlreadyExistsException;
 import com.matibabu.backend.exception.DepartmentCodeAlreadyExistsException;
 import com.matibabu.backend.exception.DepartmentNotFoundException;

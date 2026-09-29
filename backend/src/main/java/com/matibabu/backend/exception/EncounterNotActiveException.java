@@ -1,7 +1,8 @@
-package com.matibabu.backend.domain.encounter;
+package com.matibabu.backend.exception;
 
 public class EncounterNotActiveException extends RuntimeException {
     public EncounterNotActiveException(String message) {
-        super("Encounter is no longer active");
+        super(message);
     }
 }
+
