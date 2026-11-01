@@ -29,7 +29,14 @@ public class SecurityConfig {
             "/",
             "/auth/register",
             "/csrf",
-            "/login"
+            "/login",
+            // Swagger UI + OpenAPI (curated static spec + springdoc endpoints)
+            "/swagger-ui.html",
+            "/swagger-ui/**",
+            "/v3/api-docs",
+            "/v3/api-docs/**",
+            "/openapi.yaml",
+            "/openapi.json"
     };
 
     // URLs accessible to Users after login

@@ -1,0 +1,1111 @@
+openapi: 3.0.3
+info:
+  title: Matibabu EMR Lite API
+  description: |
+    REST API for the Matibabu Offline-First EMR Lite system.
+
+    Covers patient registry, facility departments, and clinical encounters.
+    Mutating endpoints require an authenticated clinician session and CSRF token
+    (see `GET /csrf` and the `X-XSRF-TOKEN` header used in `requests.http`).
+
+    Encounter facility attribution is taken from the local node identity
+    (`app.facility.id`), not from the client. Department must belong to that
+    facility and be active when starting an encounter.
+  version: 1.1.0
+  contact:
+    name: Matibabu Development Team
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: Patients
+    description: Patient registry operations
+  - name: Departments
+    description: |
+      Facility department management. Departments are first-class aggregates
+      owned by a single facility. Clinical activity (encounters) references a
+      department by id; the department must belong to the local facility node.
+  - name: Encounters
+    description: |
+      Clinical encounter lifecycle. Starting an encounter requires a patient id
+      and a department id. Facility and attending clinician are resolved server-side
+      from node identity and the authenticated principal.
+
+paths:
+  /api/patients:
+    post:
+      tags:
+        - Patients
+      summary: Register a new patient
+      description: Registers a new patient record with demographic information. Generates a UUIDv7 identifier and timestamps.
+      operationId: registerPatient
+      requestBody:
+        description: Patient demographic information for registration
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPatientRequest'
+            example:
+              firstName: John
+              lastName: Kamau
+              dateOfBirth: "1995-06-15"
+              gender: MALE
+              phoneNumber: "+254712345678"
+              address: Nairobi
+      responses:
+        '201':
+          description: Patient successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+              example:
+                id: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                firstName: John
+                lastName: Kamau
+                dateOfBirth: "1995-06-15"
+                gender: MALE
+                phoneNumber: "+254712345678"
+                address: Nairobi
+                createdAt: "2026-08-20T12:00:00Z"
+                updatedAt: "2026-08-20T12:00:00Z"
+        '400':
+          description: Invalid request payload or validation failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '409':
+          description: A patient with the specified phone number already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Patient with phone number already exists: +254712345678"
+
+    get:
+      tags:
+        - Patients
+      summary: List patients
+      description: Retrieves a paginated list of registered patients.
+      operationId: listPatients
+      parameters:
+        - name: page
+          in: query
+          description: Zero-based page index (0..N)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          example: 0
+        - name: size
+          in: query
+          description: Number of records per page
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+          example: 20
+        - name: sort
+          in: query
+          description: Sorting criteria in the format `property,(asc|desc)`. Default sort direction is ascending.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          example: ["createdAt,desc"]
+      responses:
+        '200':
+          description: Paginated collection of patients
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagePatientResponse'
+              example:
+                content:
+                  - id: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                    firstName: John
+                    lastName: Kamau
+                    dateOfBirth: "1995-06-15"
+                    gender: MALE
+                    phoneNumber: "+254712345678"
+                    address: Nairobi
+                    createdAt: "2026-08-20T12:00:00Z"
+                    updatedAt: "2026-08-20T12:00:00Z"
+                pageable:
+                  pageNumber: 0
+                  pageSize: 20
+                  sort:
+                    empty: true
+                    sorted: false
+                    unsorted: true
+                  offset: 0
+                  paged: true
+                  unpaged: false
+                totalElements: 1
+                totalPages: 1
+                last: true
+                size: 20
+                number: 0
+                sort:
+                  empty: true
+                  sorted: false
+                  unsorted: true
+                numberOfElements: 1
+                first: true
+                empty: false
+
+  /api/patients/search:
+    get:
+      tags:
+        - Patients
+      summary: Search patient by phone number
+      description: Searches and retrieves a single patient record by their unique phone number.
+      operationId: searchPatientByPhoneNumber
+      parameters:
+        - name: phoneNumber
+          in: query
+          description: Unique contact phone number to search for
+          required: true
+          schema:
+            type: string
+            pattern: '^\+?[0-9]{7,15}$'
+          example: "+254712345678"
+      responses:
+        '200':
+          description: Patient retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+              example:
+                id: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                firstName: John
+                lastName: Kamau
+                dateOfBirth: "1995-06-15"
+                gender: MALE
+                phoneNumber: "+254712345678"
+                address: Nairobi
+                createdAt: "2026-08-20T12:00:00Z"
+                updatedAt: "2026-08-20T12:00:00Z"
+        '400':
+          description: Missing or invalid phone number query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Parameter 'phoneNumber' is required"
+        '404':
+          description: No patient found with the specified phone number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Patient not found with phone number: +254712345678"
+
+  /api/patients/{id}:
+    get:
+      tags:
+        - Patients
+      summary: Get patient by ID
+      description: Retrieves demographic details of a single patient by their unique identifier (UUIDv7).
+      operationId: getPatientById
+      parameters:
+        - name: id
+          in: path
+          description: Unique patient identifier (UUID)
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+      responses:
+        '200':
+          description: Patient details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+              example:
+                id: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                firstName: John
+                lastName: Kamau
+                dateOfBirth: "1995-06-15"
+                gender: MALE
+                phoneNumber: "+254712345678"
+                address: Nairobi
+                createdAt: "2026-08-20T12:00:00Z"
+                updatedAt: "2026-08-20T12:00:00Z"
+        '404':
+          description: Patient not found with the specified ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Patient not found with id: 018d3f1a-6379-7a0e-971c-fcae741cfb12"
+
+    put:
+      tags:
+        - Patients
+      summary: Update patient demographic information
+      description: Updates demographic information of an existing patient. Updates the `updatedAt` timestamp upon successful modification.
+      operationId: updatePatient
+      parameters:
+        - name: id
+          in: path
+          description: Unique patient identifier (UUID)
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+      requestBody:
+        description: Updated patient demographic information
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePatientRequest'
+            example:
+              firstName: John
+              lastName: Kamau
+              dateOfBirth: "1995-06-15"
+              gender: MALE
+              phoneNumber: "+254700000000"
+              address: Mombasa
+      responses:
+        '200':
+          description: Patient successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+              example:
+                id: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                firstName: John
+                lastName: Kamau
+                dateOfBirth: "1995-06-15"
+                gender: MALE
+                phoneNumber: "+254700000000"
+                address: Mombasa
+                createdAt: "2026-08-20T12:00:00Z"
+                updatedAt: "2026-08-20T12:05:00Z"
+        '400':
+          description: Invalid request payload or validation failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '404':
+          description: Patient not found with the specified ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Patient not found with id: 018d3f1a-6379-7a0e-971c-fcae741cfb12"
+        '409':
+          description: Phone number is already registered to another patient
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Patient with phone number already exists: +254700000000"
+
+    delete:
+      tags:
+        - Patients
+      summary: Delete a patient
+      description: Deletes an existing patient record by ID.
+      operationId: deletePatient
+      parameters:
+        - name: id
+          in: path
+          description: Unique patient identifier (UUID)
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+      responses:
+        '204':
+          description: Patient successfully deleted
+        '404':
+          description: Patient not found with the specified ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Patient not found with id: 018d3f1a-6379-7a0e-971c-fcae741cfb12"
+
+
+  /api/departments:
+    post:
+      tags:
+        - Departments
+      summary: Create a department
+      description: |
+        Creates a department under an existing facility. Code must be unique
+        within the facility. New departments are active by default.
+      operationId: createDepartment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentRequest'
+            example:
+              facilityId: 00000000-0000-4000-8000-000000000001
+              code: OPD
+              name: Outpatient Department
+      responses:
+        '201':
+          description: Department created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentResponse'
+              example:
+                id: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                code: OPD
+                name: Outpatient Department
+                active: true
+        '400':
+          description: Validation failure (missing/blank fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '404':
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Facility not found: 00000000-0000-4000-8000-000000000099"
+        '409':
+          description: Department code already exists for this facility
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Department code OPD already exists for facility 00000000-0000-4000-8000-000000000001"
+    get:
+      tags:
+        - Departments
+      summary: List departments for a facility
+      description: |
+        Returns departments owned by the given facility. When `activeOnly=true`,
+        only active departments are returned.
+      operationId: listDepartments
+      parameters:
+        - name: facilityId
+          in: query
+          required: true
+          description: Facility whose departments should be listed
+          schema:
+            type: string
+            format: uuid
+          example: 00000000-0000-4000-8000-000000000001
+        - name: activeOnly
+          in: query
+          required: false
+          description: If true, return only active departments
+          schema:
+            type: boolean
+            default: false
+          example: true
+      responses:
+        '200':
+          description: Department list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DepartmentResponse'
+              example:
+                - id: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                  facilityId: 00000000-0000-4000-8000-000000000001
+                  code: OPD
+                  name: Outpatient Department
+                  active: true
+        '404':
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/departments/{id}:
+    get:
+      tags:
+        - Departments
+      summary: Get department by id
+      operationId: getDepartmentById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Department UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Department found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentResponse'
+        '404':
+          description: Department not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Department 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b not found!"
+
+  /api/departments/{id}/deactivate:
+    post:
+      tags:
+        - Departments
+      summary: Deactivate a department
+      description: |
+        Marks the department inactive. Inactive departments cannot be used
+        when starting new encounters (`DepartmentNotActiveException` → 400).
+      operationId: deactivateDepartment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Department UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Department deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentResponse'
+              example:
+                id: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                code: OPD
+                name: Outpatient Department
+                active: false
+        '404':
+          description: Department not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/encounters:
+    post:
+      tags:
+        - Encounters
+      summary: Start an encounter
+      description: |
+        Starts a new ACTIVE clinical encounter for a patient in a department.
+
+        Server-side rules:
+        - `facilityId` is taken from the local node identity (`app.facility.id`), not the request body.
+        - `attendingClinicianId` is taken from the authenticated clinician principal.
+        - `departmentId` must exist, belong to the local facility, and be active.
+
+        Failure modes:
+        - Unknown department → 404 (`DepartmentNotFoundException`)
+        - Department owned by another facility → 400 (`DepartmentFacilityMismatchException`)
+        - Department inactive → 400 (`DepartmentNotActiveException`)
+      operationId: startEncounter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartEncounterRequest'
+            example:
+              patientId: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+              departmentId: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+      responses:
+        '201':
+          description: Encounter started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncounterResponse'
+              example:
+                id: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b
+                patientId: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                attendingClinicianId: 018e1a2b-3c4d-7e5f-6a7b-8c9d0e1f2a3b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                departmentId: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                startedAt: "2026-11-01T07:30:00Z"
+                status: ACTIVE
+                endedAt: null
+        '400':
+          description: |
+            Invalid request — validation failure, department/facility mismatch,
+            or inactive department.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                mismatch:
+                  summary: Department from another facility
+                  value:
+                    error: "Department 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b does not belong to the current facility 00000000-0000-4000-8000-000000000001"
+                inactive:
+                  summary: Department deactivated
+                  value:
+                    error: "Department 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b is not active"
+        '404':
+          description: Department not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Department 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b not found!"
+
+  /api/encounters/{id}:
+    get:
+      tags:
+        - Encounters
+      summary: Get encounter by id
+      operationId: getEncounterById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Encounter UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Encounter found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncounterResponse'
+        '404':
+          description: Encounter not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Encounter not found: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b"
+
+  /api/encounters/{id}/discharge:
+    post:
+      tags:
+        - Encounters
+      summary: Discharge an active encounter
+      description: |
+        Transitions an ACTIVE encounter to DISCHARGED and records `endedAt`.
+        Non-active encounters yield 409 (`EncounterNotActiveException`).
+      operationId: dischargeEncounter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Encounter UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Encounter discharged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncounterResponse'
+              example:
+                id: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b
+                patientId: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                attendingClinicianId: 018e1a2b-3c4d-7e5f-6a7b-8c9d0e1f2a3b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                departmentId: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                startedAt: "2026-11-01T07:30:00Z"
+                status: DISCHARGED
+                endedAt: "2026-11-01T09:15:00Z"
+        '404':
+          description: Encounter not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Encounter is not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Encounter is no longer active"
+
+  /api/encounters/{id}/cancel:
+    post:
+      tags:
+        - Encounters
+      summary: Cancel an active encounter
+      description: |
+        Transitions an ACTIVE encounter to CANCELLED and records `endedAt`.
+        Non-active encounters yield 409 (`EncounterNotActiveException`).
+      operationId: cancelEncounter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Encounter UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Encounter cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncounterResponse'
+              example:
+                id: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b
+                patientId: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                attendingClinicianId: 018e1a2b-3c4d-7e5f-6a7b-8c9d0e1f2a3b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                departmentId: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                startedAt: "2026-11-01T07:30:00Z"
+                status: CANCELLED
+                endedAt: "2026-11-01T07:45:00Z"
+        '404':
+          description: Encounter not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Encounter is not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Encounter is no longer active"
+
+components:
+  schemas:
+
+    EncounterStatus:
+      type: string
+      description: Lifecycle status of a clinical encounter
+      enum:
+        - ACTIVE
+        - DISCHARGED
+        - CANCELLED
+      example: ACTIVE
+
+    CreateDepartmentRequest:
+      type: object
+      description: Request payload for creating a facility department
+      required:
+        - facilityId
+        - code
+        - name
+      properties:
+        facilityId:
+          type: string
+          format: uuid
+          description: Facility that will own this department
+          example: 00000000-0000-4000-8000-000000000001
+        code:
+          type: string
+          description: Stable department code unique within the facility (must not be blank)
+          example: OPD
+        name:
+          type: string
+          description: Human-readable department name (must not be blank)
+          example: Outpatient Department
+
+    DepartmentResponse:
+      type: object
+      description: Department resource returned by the API
+      required:
+        - id
+        - facilityId
+        - code
+        - name
+        - active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Department UUIDv7
+          example: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+        facilityId:
+          type: string
+          format: uuid
+          description: Owning facility id
+          example: 00000000-0000-4000-8000-000000000001
+        code:
+          type: string
+          example: OPD
+        name:
+          type: string
+          example: Outpatient Department
+        active:
+          type: boolean
+          description: Whether the department can be used for new encounters
+          example: true
+
+    StartEncounterRequest:
+      type: object
+      description: |
+        Request payload for starting a clinical encounter.
+        Facility and attending clinician are resolved server-side.
+      required:
+        - patientId
+        - departmentId
+      properties:
+        patientId:
+          type: string
+          format: uuid
+          description: Patient for whom the encounter is started
+          example: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+        departmentId:
+          type: string
+          format: uuid
+          description: |
+            Department responsible for the encounter. Must belong to the local
+            facility node and be active.
+          example: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+
+    EncounterResponse:
+      type: object
+      description: Encounter resource returned by the API
+      required:
+        - id
+        - patientId
+        - attendingClinicianId
+        - facilityId
+        - departmentId
+        - startedAt
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Encounter UUIDv7
+          example: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b
+        patientId:
+          type: string
+          format: uuid
+          example: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+        attendingClinicianId:
+          type: string
+          format: uuid
+          description: Clinician recorded from the authenticated principal
+          example: 018e1a2b-3c4d-7e5f-6a7b-8c9d0e1f2a3b
+        facilityId:
+          type: string
+          format: uuid
+          description: Facility taken from local node identity at start time
+          example: 00000000-0000-4000-8000-000000000001
+        departmentId:
+          type: string
+          format: uuid
+          description: Department attributed to the encounter
+          example: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+        startedAt:
+          type: string
+          format: date-time
+          example: "2026-11-01T07:30:00Z"
+        status:
+          $ref: '#/components/schemas/EncounterStatus'
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set when the encounter is discharged or cancelled
+          example: null
+
+    Gender:
+      type: string
+      description: Gender of the patient
+      enum:
+        - MALE
+        - FEMALE
+        - OTHER
+        - UNKNOWN
+      example: MALE
+
+    RegisterPatientRequest:
+      type: object
+      description: Request payload for registering a new patient
+      required:
+        - firstName
+        - lastName
+        - dateOfBirth
+        - gender
+        - phoneNumber
+        - address
+      properties:
+        firstName:
+          type: string
+          description: Patient's first name (must not be blank)
+          example: John
+        lastName:
+          type: string
+          description: Patient's last name (must not be blank)
+          example: Kamau
+        dateOfBirth:
+          type: string
+          format: date
+          description: Patient's date of birth (must be in the past or present)
+          example: "1995-06-15"
+        gender:
+          $ref: '#/components/schemas/Gender'
+        phoneNumber:
+          type: string
+          pattern: '^\+?[0-9]{7,15}$'
+          description: "Patient's contact phone number (must be unique and valid: 7-15 digits with optional '+' prefix)"
+          example: "+254712345678"
+        address:
+          type: string
+          description: Patient's residential address (must not be blank)
+          example: Nairobi
+
+    UpdatePatientRequest:
+      type: object
+      description: Request payload for updating patient demographic information
+      required:
+        - firstName
+        - lastName
+        - dateOfBirth
+        - gender
+        - phoneNumber
+        - address
+      properties:
+        firstName:
+          type: string
+          description: Patient's updated first name (must not be blank)
+          example: John
+        lastName:
+          type: string
+          description: Patient's updated last name (must not be blank)
+          example: Kamau
+        dateOfBirth:
+          type: string
+          format: date
+          description: Patient's updated date of birth (must be in the past or present)
+          example: "1995-06-15"
+        gender:
+          $ref: '#/components/schemas/Gender'
+        phoneNumber:
+          type: string
+          pattern: '^\+?[0-9]{7,15}$'
+          description: "Patient's updated contact phone number (must be unique and valid: 7-15 digits with optional '+' prefix)"
+          example: "+254700000000"
+        address:
+          type: string
+          description: Patient's updated residential address (must not be blank)
+          example: Mombasa
+
+    PatientResponse:
+      type: object
+      description: Demographic and metadata response model for a patient
+      required:
+        - id
+        - firstName
+        - lastName
+        - dateOfBirth
+        - gender
+        - phoneNumber
+        - address
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique patient identifier (UUIDv7)
+          example: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+        firstName:
+          type: string
+          description: Patient's first name
+          example: John
+        lastName:
+          type: string
+          description: Patient's last name
+          example: Kamau
+        dateOfBirth:
+          type: string
+          format: date
+          description: Patient's date of birth
+          example: "1995-06-15"
+        gender:
+          $ref: '#/components/schemas/Gender'
+        phoneNumber:
+          type: string
+          description: Patient's contact phone number
+          example: "+254712345678"
+        address:
+          type: string
+          description: Patient's residential address
+          example: Nairobi
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the patient record was created
+          example: "2026-08-20T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the patient record was last updated
+          example: "2026-08-20T12:00:00Z"
+
+    PagePatientResponse:
+      type: object
+      description: Paginated response containing a list of patients
+      required:
+        - content
+        - totalPages
+        - totalElements
+        - last
+        - first
+        - size
+        - number
+        - numberOfElements
+        - empty
+      properties:
+        content:
+          type: array
+          description: List of patients on the current page
+          items:
+            $ref: '#/components/schemas/PatientResponse'
+        pageable:
+          $ref: '#/components/schemas/PageableObject'
+        totalPages:
+          type: integer
+          description: Total number of pages available
+          example: 1
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of records across all pages
+          example: 1
+        last:
+          type: boolean
+          description: Whether this is the last page
+          example: true
+        first:
+          type: boolean
+          description: Whether this is the first page
+          example: true
+        size:
+          type: integer
+          description: Requested page size
+          example: 20
+        number:
+          type: integer
+          description: Current page number (zero-based)
+          example: 0
+        sort:
+          $ref: '#/components/schemas/SortObject'
+        numberOfElements:
+          type: integer
+          description: Number of elements in the current page
+          example: 1
+        empty:
+          type: boolean
+          description: Whether the page contains no records
+          example: false
+
+    PageableObject:
+      type: object
+      description: Pagination metadata
+      properties:
+        pageNumber:
+          type: integer
+          example: 0
+        pageSize:
+          type: integer
+          example: 20
+        sort:
+          $ref: '#/components/schemas/SortObject'
+        offset:
+          type: integer
+          format: int64
+          example: 0
+        paged:
+          type: boolean
+          example: true
+        unpaged:
+          type: boolean
+          example: false
+
+    SortObject:
+      type: object
+      description: Sorting metadata
+      properties:
+        empty:
+          type: boolean
+          example: true
+        sorted:
+          type: boolean
+          example: false
+        unsorted:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      description: Standard error response
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Description of the error
+          example: "Patient not found with id: 018d3f1a-6379-7a0e-971c-fcae741cfb12"
+
+    ValidationErrorResponse:
+      type: object
+      description: Standard validation error response
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-08-20T12:00:00Z"
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Validation failed for object='registerPatientRequest'"
+        path:
+          type: string
+          example: "/api/patients"
