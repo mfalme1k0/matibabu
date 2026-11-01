@@ -924,3 +924,26 @@ First, check whether the request contains the required CSRF token and whether th
 If an endpoint returns `401 Unauthorized`, first check whether the request has a valid authenticated session and whether login succeeded.
 
 Following this workflow allows backend developers to test their APIs normally while keeping the application's Spring Security protections enabled.
+
+---
+
+## Swagger UI and CSRF (developer workflow)
+
+Swagger UI is available at `/swagger-ui.html` without authentication.
+
+Interactive **Try it out** against protected APIs still requires:
+
+1. `GET /csrf` — establishes the `XSRF-TOKEN` cookie (Swagger helper does this on load).
+2. `POST /login` — form fields `email`, `password` (session cookie `JSESSIONID`).
+3. Mutating calls must send header `X-XSRF-TOKEN` matching the cookie value.
+
+springdoc is configured with:
+
+```properties
+springdoc.swagger-ui.csrf.enabled=true
+springdoc.swagger-ui.csrf.cookie-name=XSRF-TOKEN
+springdoc.swagger-ui.csrf.header-name=X-XSRF-TOKEN
+springdoc.swagger-ui.custom-js=/swagger-csrf-helper.js
+```
+
+See also [docs/api/README.md](../api/README.md).

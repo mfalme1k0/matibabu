@@ -98,13 +98,17 @@ Three use cases coordinate department operations:
 A REST endpoint was introduced under:
 
 ```text
-POST /api/departments
+POST   /api/departments
+GET    /api/departments/{id}
+GET    /api/departments?facilityId={uuid}&activeOnly={bool}
+POST   /api/departments/{id}/deactivate
 ```
 
 `CreateDepartmentRequest` carries `facilityId`, `code`, and `name`;
-`DepartmentResponse` reflects the created department's id, facility id,
-code, name, and active status. The listing and deactivation use cases exist
-in the application layer but are not yet exposed as endpoints.
+`DepartmentResponse` reflects the department's id, facility id, code, name,
+and active status. Listing and deactivation are exposed on the controller.
+Encounter start validates that the department belongs to the local
+`NodeIdentity` facility and is active.
 
 ### Persistence
 
@@ -148,13 +152,10 @@ existing encounters with a required department.
 
 ### Trade-offs
 
-* Only department creation is currently exposed over the API; listing and
-  deactivation have application services but no endpoints yet.
-* `department_id` on `encounters` is optional, so nothing currently
-  enforces that an encounter records a department.
-* `CreateDepartmentUseCase.Create` and `DeactivateDepartmentUseCase.deactivate`
-  use non-standard parameter/method capitalization (`Create`, `Id`)
-  inconsistent with the rest of the codebase's Java conventions.
+* Department create still accepts a client-supplied `facilityId`. Facility-role
+  nodes may later force `NodeIdentity.facilityId()` the same way encounters do.
+* Older encounters may still have a null `department_id` from before the column
+  was required on new starts; reporting should tolerate nulls for legacy rows.
 
 ## Implementation
 
@@ -165,12 +166,16 @@ The functionality introduced includes:
 * `CreateDepartmentUseCase` / `CreateDepartmentService`
 * `ListDepartmentUseCase` / `ListDepartmentService`
 * `DeactivateDepartmentUseCase` / `DeactivateDepartmentService`
-* `DepartmentController` with `POST /api/departments`
+* `DepartmentController` with create, get, list, and deactivate endpoints
 * `DepartmentCodeAlreadyExistsException`, `DepartmentNotFoundException`
+* `DepartmentFacilityMismatchException`, `DepartmentNotActiveException`
+  (encounter start boundary)
 * `DepartmentEntity`, `DepartmentMapper`, `SpringDataDepartmentsRepository`
 * Flyway migrations `V23` (`departments` table) and `V24`
   (`encounters.department_id`)
+* OpenAPI: `docs/api/openapi.yaml`; narrative:
+  `docs/api/departments-and-encounters.md`
 
 ## Status
 
-**Accepted and implemented.**
+**Accepted and implemented** (HTTP surface and encounter facility/active checks in place as of 2026-11).
