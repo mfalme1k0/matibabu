@@ -171,14 +171,71 @@ X-XSRF-TOKEN: {{csrfToken}}
 
 
 ### ============================================================
+### DEPARTMENT API
+### ============================================================
+### Local facility id for development (see application-local.properties):
+### @facilityId = 00000000-0000-4000-8000-000000000001
+
+### POST Create Department - Login + CSRF Required
+### facilityId must belong to an existing facility.
+### Expected: 201 Created
+POST http://localhost:8080/api/departments
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "facilityId": "{{facilityId}}",
+  "code": "OPD",
+  "name": "Outpatient Department"
+}
+
+### GET Department by ID - Login Required
+GET http://localhost:8080/api/departments/{{departmentId}}
+
+### GET Departments for a Facility - Login Required
+GET http://localhost:8080/api/departments?facilityId={{facilityId}}
+
+### GET Active Departments for a Facility - Login Required
+GET http://localhost:8080/api/departments?facilityId={{facilityId}}&activeOnly=true
+
+### POST Deactivate Department - Login + CSRF Required
+### Expected: 200 OK; department.active becomes false
+POST http://localhost:8080/api/departments/{{departmentId}}/deactivate
+X-XSRF-TOKEN: {{csrfToken}}
+
+### POST Create Department with duplicate code for same facility
+### Expected: 409 Conflict
+POST http://localhost:8080/api/departments
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "facilityId": "{{facilityId}}",
+  "code": "OPD",
+  "name": "Duplicate OPD"
+}
+
+### GET Department that does not exist
+### Expected: 404 Not Found
+GET http://localhost:8080/api/departments/{{nonExistentDepartmentId}}
+
+
+### ============================================================
 ### ENCOUNTER API
 ### ============================================================
 
-### POST Start Encounter for Patient - Login + CSRF Required
+### POST Start Encounter - Login + CSRF Required
 ### patientId must belong to an existing patient.
+### departmentId must belong to the local facility (app.facility.id) and be active.
 ### Expected: 201 Created
-POST http://localhost:8080/api/encounters/{{patientId}}
+POST http://localhost:8080/api/encounters
+Content-Type: application/json
 X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "patientId": "{{patientId}}",
+  "departmentId": "{{departmentId}}"
+}
 
 ### GET Encounter by ID - Login Required
 ### encounterId must be a valid UUIDv7.
@@ -203,9 +260,48 @@ X-XSRF-TOKEN: {{csrfToken}}
 ### ============================================================
 
 ### POST Start Encounter for non-existent patient
-### Expected: depends on current application-level handling.
-POST http://localhost:8080/api/encounters/{{nonExistentPatientId}}
+### Expected: depends on current application-level handling (patient lookup may be deferred).
+POST http://localhost:8080/api/encounters
+Content-Type: application/json
 X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "patientId": "{{nonExistentPatientId}}",
+  "departmentId": "{{departmentId}}"
+}
+
+### POST Start Encounter with non-existent department
+### Expected: 404 Not Found
+POST http://localhost:8080/api/encounters
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "patientId": "{{patientId}}",
+  "departmentId": "{{nonExistentDepartmentId}}"
+}
+
+### POST Start Encounter with department from another facility
+### Expected: 400 Bad Request (DepartmentFacilityMismatchException)
+POST http://localhost:8080/api/encounters
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "patientId": "{{patientId}}",
+  "departmentId": "{{otherFacilityDepartmentId}}"
+}
+
+### POST Start Encounter with deactivated department
+### Expected: 400 Bad Request (DepartmentNotActiveException)
+POST http://localhost:8080/api/encounters
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
+
+{
+  "patientId": "{{patientId}}",
+  "departmentId": "{{inactiveDepartmentId}}"
+}
 
 ### GET Encounter with non-existent ID
 ### Expected: 404 Not Found
@@ -423,7 +519,13 @@ GET http://localhost:8080/api/encounters/{{encounterId}}/medical-record
 
 ### POST Start Encounter without CSRF token
 ### Expected: 403 Forbidden
-POST http://localhost:8080/api/encounters/{{patientId}}
+POST http://localhost:8080/api/encounters
+Content-Type: application/json
+
+{
+  "patientId": "{{patientId}}",
+  "departmentId": "{{departmentId}}"
+}
 
 ### POST Create Medical Record without CSRF token
 ### Expected: 403 Forbidden

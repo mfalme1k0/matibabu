@@ -5,5 +5,5 @@ import com.matibabu.backend.domain.department.Department;
 import java.util.UUID;
 
 public interface CreateDepartmentUseCase {
-    Department Create(UUID facilityId, String code, String name);
+    Department create(UUID facilityId, String code, String name);
 }

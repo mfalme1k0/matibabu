@@ -3,6 +3,8 @@ package com.matibabu.backend.api.exception;
 import com.matibabu.backend.exception.EncounterNotActiveException;
 import com.matibabu.backend.exception.ClinicianAlreadyExistsException;
 import com.matibabu.backend.exception.DepartmentCodeAlreadyExistsException;
+import com.matibabu.backend.exception.DepartmentFacilityMismatchException;
+import com.matibabu.backend.exception.DepartmentNotActiveException;
 import com.matibabu.backend.exception.DepartmentNotFoundException;
 import com.matibabu.backend.exception.DuplicateMflCodeException;
 import com.matibabu.backend.exception.DuplicatePhoneNumberException;
@@ -51,7 +53,9 @@ class GlobalExceptionHandlerTest {
                 Arguments.of(new ClinicianAlreadyExistsException("already exists"), HttpStatus.CONFLICT),
                 Arguments.of(new ReferralNotPendingException("not pending"), HttpStatus.CONFLICT),
                 Arguments.of(new EncounterNotActiveException("not active"), HttpStatus.CONFLICT),
-                Arguments.of(new InvalidDiagnosisReferenceException(id, id), HttpStatus.BAD_REQUEST)
+                Arguments.of(new InvalidDiagnosisReferenceException(id, id), HttpStatus.BAD_REQUEST),
+                Arguments.of(new DepartmentFacilityMismatchException(id, id), HttpStatus.BAD_REQUEST),
+                Arguments.of(new DepartmentNotActiveException(id), HttpStatus.BAD_REQUEST)
         );
     }
 

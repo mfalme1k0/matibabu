@@ -5,6 +5,9 @@ import com.matibabu.backend.domain.department.Department;
 import com.matibabu.backend.domain.department.DepartmentRepository;
 import com.matibabu.backend.domain.encounter.Encounter;
 import com.matibabu.backend.domain.encounter.EncounterRepository;
+import com.matibabu.backend.exception.DepartmentFacilityMismatchException;
+import com.matibabu.backend.exception.DepartmentNotActiveException;
+import com.matibabu.backend.exception.DepartmentNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -37,14 +40,14 @@ public class StartEncounterService implements StartEncounterUseCase {
         UUID facilityId = nodeIdentity.facilityId();
 
         Department department = departmentRepository.findById(departmentId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Department not found: " + departmentId
-                ));
+                .orElseThrow(() -> new DepartmentNotFoundException(departmentId));
 
         if (!department.getFacilityId().equals(facilityId)) {
-            throw new IllegalArgumentException(
-                    "Department does not belong to the current facility"
-            );
+            throw new DepartmentFacilityMismatchException(departmentId, facilityId);
+        }
+
+        if (!department.isActive()) {
+            throw new DepartmentNotActiveException(departmentId);
         }
 
         Encounter encounter = Encounter.start(
@@ -58,4 +61,3 @@ public class StartEncounterService implements StartEncounterUseCase {
         return encounterRepository.save(encounter);
     }
 }
-

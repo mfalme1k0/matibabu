@@ -10,6 +10,8 @@ public record EncounterResponse(
         UUID id,
         UUID patientId,
         UUID attendingClinicianId,
+        UUID facilityId,
+        UUID departmentId,
         Instant startedAt,
         EncounterStatus status,
         Instant endedAt
@@ -20,6 +22,8 @@ public record EncounterResponse(
                 encounter.getId(),
                 encounter.getPatientId(),
                 encounter.getAttendingClinicianId(),
+                encounter.getFacilityId(),
+                encounter.getDepartmentId(),
                 encounter.getStartedAt(),
                 encounter.getStatus(),
                 encounter.getEndedAt()
