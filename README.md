@@ -52,6 +52,47 @@ The backend currently contains functionality for:
 
 ---
 
+---
+
+# Local development
+
+## Run the backend
+
+```bash
+cd backend
+./mvnw spring-boot:run
+```
+
+Default local profile uses SQLite and a fixed facility id
+(`app.facility.id=00000000-0000-4000-8000-000000000001` in `application-local.properties`).
+
+Seed admin (Flyway): `admin@example.com` / `Password`.
+
+## API documentation
+
+| Resource | URL / path |
+|----------|------------|
+| Swagger UI | http://localhost:8080/swagger-ui.html |
+| Curated OpenAPI YAML | http://localhost:8080/openapi.yaml |
+| Generated OpenAPI JSON | http://localhost:8080/v3/api-docs |
+| Contract source | [docs/api/openapi.yaml](docs/api/openapi.yaml) |
+| HTTP examples | [requests.http](requests.http) |
+| Narrative API notes | [docs/api/](docs/api/) |
+
+Swagger UI is public. Clinical endpoints still require a session. The UI loads
+`/swagger-csrf-helper.js` so **Try it out** sends `JSESSIONID` and `X-XSRF-TOKEN`
+after you log in in the same browser (`POST /login` with form fields `email` and
+`password`).
+
+CSRF bootstrap: `GET /csrf` (also invoked automatically by the Swagger helper).
+
+## Stack notes
+
+* Spring Boot 4.x, Java 25 (toolchain as declared in `backend/pom.xml`)
+* springdoc-openapi **3.x** (`springdoc-openapi-starter-webmvc-ui`) for Swagger UI
+* Security: form login, session cookie, cookie CSRF (`XSRF-TOKEN` / `X-XSRF-TOKEN`)
+
+
 # Architecture
 
 The backend follows a domain-oriented architecture that separates business rules, application orchestration, infrastructure, security, and external-system concerns.
@@ -358,16 +399,29 @@ This keeps departmentalization an organizational concern while allowing clinical
 
 ### Facility boundary
 
-Department ownership is enforced at the application boundary.
+Department ownership is enforced at the application boundary in `StartEncounterService`.
 
 When an encounter is started:
 
-1. The current facility is obtained from `NodeIdentity`.
-2. The requested department is loaded.
-3. The department's `facilityId` is compared with the current facility.
-4. The encounter is created only when the department belongs to that facility.
+1. The current facility is obtained from `NodeIdentity` (`app.facility.id`).
+2. The requested department is loaded (`DepartmentNotFoundException` → 404 if missing).
+3. The department's `facilityId` is compared with the current facility
+   (`DepartmentFacilityMismatchException` → 400 on mismatch).
+4. The department must be **active** (`DepartmentNotActiveException` → 400 if deactivated).
+5. The encounter is created with server-side `facilityId` and the authenticated clinician id.
 
-This prevents a local facility from creating clinical activity against a department belonging to another facility.
+This prevents a local facility from creating clinical activity against a department belonging to another facility, and blocks use of retired departments.
+
+### Department HTTP API
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/departments` | Create |
+| `GET` | `/api/departments/{id}` | Get by id |
+| `GET` | `/api/departments?facilityId=&activeOnly=` | List |
+| `POST` | `/api/departments/{id}/deactivate` | Deactivate |
+
+See [docs/api/departments-and-encounters.md](docs/api/departments-and-encounters.md) and [docs/api/openapi.yaml](docs/api/openapi.yaml).
 
 ---
 
@@ -403,7 +457,12 @@ security/
 
 Security is kept outside the clinical domain.
 
-CSRF protection is explicitly configured as part of the web security boundary.
+CSRF protection is explicitly configured as part of the web security boundary
+(`CookieCsrfTokenRepository`, header `X-XSRF-TOKEN`).
+
+Swagger UI and OpenAPI resources (`/swagger-ui/**`, `/v3/api-docs/**`,
+`/openapi.yaml`, `/swagger-csrf-helper.js`) are permit-all. All `/api/**`
+clinical routes remain authenticated.
 
 ---
 
