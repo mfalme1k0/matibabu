@@ -5,13 +5,13 @@ import com.matibabu.backend.domain.department.Department;
 import java.util.UUID;
 
 public record DepartmentResponse(
-        UUID Id,
+        UUID id,
         UUID facilityId,
-        String Code,
+        String code,
         String name,
-        boolean Active
+        boolean active
 ) {
-    public static DepartmentResponse from(Department department){
+    public static DepartmentResponse from(Department department) {
         return new DepartmentResponse(
                 department.getId(),
                 department.getFacilityId(),

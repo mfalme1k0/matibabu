@@ -3,6 +3,8 @@ package com.matibabu.backend.api.exception;
 import com.matibabu.backend.exception.EncounterNotActiveException;
 import com.matibabu.backend.exception.ClinicianAlreadyExistsException;
 import com.matibabu.backend.exception.DepartmentCodeAlreadyExistsException;
+import com.matibabu.backend.exception.DepartmentFacilityMismatchException;
+import com.matibabu.backend.exception.DepartmentNotActiveException;
 import com.matibabu.backend.exception.DepartmentNotFoundException;
 import com.matibabu.backend.exception.DuplicateMflCodeException;
 import com.matibabu.backend.exception.DuplicatePhoneNumberException;
@@ -48,7 +50,9 @@ public class GlobalExceptionHandler {
             Map.entry(EncounterNotActiveException.class, HttpStatus.CONFLICT),
 
             // Bad request: the request refers to something invalid/inconsistent
-            Map.entry(InvalidDiagnosisReferenceException.class, HttpStatus.BAD_REQUEST)
+            Map.entry(InvalidDiagnosisReferenceException.class, HttpStatus.BAD_REQUEST),
+            Map.entry(DepartmentFacilityMismatchException.class, HttpStatus.BAD_REQUEST),
+            Map.entry(DepartmentNotActiveException.class, HttpStatus.BAD_REQUEST)
     );
 
     @ExceptionHandler({
@@ -66,7 +70,9 @@ public class GlobalExceptionHandler {
             ClinicianAlreadyExistsException.class,
             ReferralNotPendingException.class,
             EncounterNotActiveException.class,
-            InvalidDiagnosisReferenceException.class
+            InvalidDiagnosisReferenceException.class,
+            DepartmentFacilityMismatchException.class,
+            DepartmentNotActiveException.class
     })
     public ResponseEntity<Map<String, String>> handleDomainException(RuntimeException exception) {
         HttpStatus status = STATUS_BY_EXCEPTION.getOrDefault(exception.getClass(), HttpStatus.INTERNAL_SERVER_ERROR);

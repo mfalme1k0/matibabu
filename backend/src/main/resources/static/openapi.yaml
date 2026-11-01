@@ -3,8 +3,27 @@ info:
   title: Matibabu EMR Lite API
   description: |
     REST API for the Matibabu Offline-First EMR Lite system.
-    Provides endpoints for patient registration, retrieval, search, listing, updates, and deletion.
-  version: 1.0.0
+
+    Covers patient registry, facility departments, and clinical encounters.
+
+    ## Authentication (Swagger Try it out)
+
+    The API uses **form login + HTTP session** and **cookie CSRF** (not Bearer tokens).
+
+    1. Ensure a CSRF cookie exists: `GET /csrf` (Swagger UI seeds this automatically).
+    2. Login in the **same browser** via `POST /login` with form fields `email` and `password`
+       (default local admin is defined by Flyway seed data — see `V10__create_initial_admin.sql`).
+    3. Session cookie `JSESSIONID` and header `X-XSRF-TOKEN` (from cookie `XSRF-TOKEN`)
+       are attached by the Swagger helper on subsequent requests.
+
+    Mutating endpoints without a valid session return **401**; missing CSRF returns **403**.
+
+    ## Domain notes
+
+    Encounter facility attribution is taken from the local node identity
+    (`app.facility.id`), not from the client. Department must belong to that
+    facility and be active when starting an encounter.
+  version: 1.1.0
   contact:
     name: Matibabu Development Team
 servers:
@@ -14,6 +33,16 @@ servers:
 tags:
   - name: Patients
     description: Patient registry operations
+  - name: Departments
+    description: |
+      Facility department management. Departments are first-class aggregates
+      owned by a single facility. Clinical activity (encounters) references a
+      department by id; the department must belong to the local facility node.
+  - name: Encounters
+    description: |
+      Clinical encounter lifecycle. Starting an encounter requires a patient id
+      and a department id. Facility and attending clinician are resolved server-side
+      from node identity and the authenticated principal.
 
 paths:
   /api/patients:
@@ -332,8 +361,506 @@ paths:
               example:
                 error: "Patient not found with id: 018d3f1a-6379-7a0e-971c-fcae741cfb12"
 
+
+  /api/departments:
+    post:
+      tags:
+        - Departments
+      summary: Create a department
+      description: |
+        Creates a department under an existing facility. Code must be unique
+        within the facility. New departments are active by default.
+      operationId: createDepartment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentRequest'
+            example:
+              facilityId: 00000000-0000-4000-8000-000000000001
+              code: OPD
+              name: Outpatient Department
+      responses:
+        '201':
+          description: Department created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentResponse'
+              example:
+                id: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                code: OPD
+                name: Outpatient Department
+                active: true
+        '400':
+          description: Validation failure (missing/blank fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '404':
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Facility not found: 00000000-0000-4000-8000-000000000099"
+        '409':
+          description: Department code already exists for this facility
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Department code OPD already exists for facility 00000000-0000-4000-8000-000000000001"
+    get:
+      tags:
+        - Departments
+      summary: List departments for a facility
+      description: |
+        Returns departments owned by the given facility. When `activeOnly=true`,
+        only active departments are returned.
+      operationId: listDepartments
+      parameters:
+        - name: facilityId
+          in: query
+          required: true
+          description: Facility whose departments should be listed
+          schema:
+            type: string
+            format: uuid
+          example: 00000000-0000-4000-8000-000000000001
+        - name: activeOnly
+          in: query
+          required: false
+          description: If true, return only active departments
+          schema:
+            type: boolean
+            default: false
+          example: true
+      responses:
+        '200':
+          description: Department list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DepartmentResponse'
+              example:
+                - id: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                  facilityId: 00000000-0000-4000-8000-000000000001
+                  code: OPD
+                  name: Outpatient Department
+                  active: true
+        '404':
+          description: Facility not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/departments/{id}:
+    get:
+      tags:
+        - Departments
+      summary: Get department by id
+      operationId: getDepartmentById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Department UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Department found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentResponse'
+        '404':
+          description: Department not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Department 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b not found!"
+
+  /api/departments/{id}/deactivate:
+    post:
+      tags:
+        - Departments
+      summary: Deactivate a department
+      description: |
+        Marks the department inactive. Inactive departments cannot be used
+        when starting new encounters (`DepartmentNotActiveException` → 400).
+      operationId: deactivateDepartment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Department UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Department deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentResponse'
+              example:
+                id: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                code: OPD
+                name: Outpatient Department
+                active: false
+        '404':
+          description: Department not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/encounters:
+    post:
+      tags:
+        - Encounters
+      summary: Start an encounter
+      description: |
+        Starts a new ACTIVE clinical encounter for a patient in a department.
+
+        Server-side rules:
+        - `facilityId` is taken from the local node identity (`app.facility.id`), not the request body.
+        - `attendingClinicianId` is taken from the authenticated clinician principal.
+        - `departmentId` must exist, belong to the local facility, and be active.
+
+        Failure modes:
+        - Unknown department → 404 (`DepartmentNotFoundException`)
+        - Department owned by another facility → 400 (`DepartmentFacilityMismatchException`)
+        - Department inactive → 400 (`DepartmentNotActiveException`)
+      operationId: startEncounter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartEncounterRequest'
+            example:
+              patientId: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+              departmentId: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+      responses:
+        '201':
+          description: Encounter started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncounterResponse'
+              example:
+                id: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b
+                patientId: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                attendingClinicianId: 018e1a2b-3c4d-7e5f-6a7b-8c9d0e1f2a3b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                departmentId: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                startedAt: "2026-11-01T07:30:00Z"
+                status: ACTIVE
+                endedAt: null
+        '400':
+          description: |
+            Invalid request — validation failure, department/facility mismatch,
+            or inactive department.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                mismatch:
+                  summary: Department from another facility
+                  value:
+                    error: "Department 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b does not belong to the current facility 00000000-0000-4000-8000-000000000001"
+                inactive:
+                  summary: Department deactivated
+                  value:
+                    error: "Department 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b is not active"
+        '404':
+          description: Department not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Department 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b not found!"
+
+  /api/encounters/{id}:
+    get:
+      tags:
+        - Encounters
+      summary: Get encounter by id
+      operationId: getEncounterById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Encounter UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Encounter found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncounterResponse'
+        '404':
+          description: Encounter not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Encounter not found: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b"
+
+  /api/encounters/{id}/discharge:
+    post:
+      tags:
+        - Encounters
+      summary: Discharge an active encounter
+      description: |
+        Transitions an ACTIVE encounter to DISCHARGED and records `endedAt`.
+        Non-active encounters yield 409 (`EncounterNotActiveException`).
+      operationId: dischargeEncounter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Encounter UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Encounter discharged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncounterResponse'
+              example:
+                id: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b
+                patientId: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                attendingClinicianId: 018e1a2b-3c4d-7e5f-6a7b-8c9d0e1f2a3b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                departmentId: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                startedAt: "2026-11-01T07:30:00Z"
+                status: DISCHARGED
+                endedAt: "2026-11-01T09:15:00Z"
+        '404':
+          description: Encounter not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Encounter is not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Encounter is no longer active"
+
+  /api/encounters/{id}/cancel:
+    post:
+      tags:
+        - Encounters
+      summary: Cancel an active encounter
+      description: |
+        Transitions an ACTIVE encounter to CANCELLED and records `endedAt`.
+        Non-active encounters yield 409 (`EncounterNotActiveException`).
+      operationId: cancelEncounter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Encounter UUIDv7
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Encounter cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncounterResponse'
+              example:
+                id: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b
+                patientId: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+                attendingClinicianId: 018e1a2b-3c4d-7e5f-6a7b-8c9d0e1f2a3b
+                facilityId: 00000000-0000-4000-8000-000000000001
+                departmentId: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+                startedAt: "2026-11-01T07:30:00Z"
+                status: CANCELLED
+                endedAt: "2026-11-01T07:45:00Z"
+        '404':
+          description: Encounter not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Encounter is not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Encounter is no longer active"
+
 components:
   schemas:
+
+    EncounterStatus:
+      type: string
+      description: Lifecycle status of a clinical encounter
+      enum:
+        - ACTIVE
+        - DISCHARGED
+        - CANCELLED
+      example: ACTIVE
+
+    CreateDepartmentRequest:
+      type: object
+      description: Request payload for creating a facility department
+      required:
+        - facilityId
+        - code
+        - name
+      properties:
+        facilityId:
+          type: string
+          format: uuid
+          description: Facility that will own this department
+          example: 00000000-0000-4000-8000-000000000001
+        code:
+          type: string
+          description: Stable department code unique within the facility (must not be blank)
+          example: OPD
+        name:
+          type: string
+          description: Human-readable department name (must not be blank)
+          example: Outpatient Department
+
+    DepartmentResponse:
+      type: object
+      description: Department resource returned by the API
+      required:
+        - id
+        - facilityId
+        - code
+        - name
+        - active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Department UUIDv7
+          example: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+        facilityId:
+          type: string
+          format: uuid
+          description: Owning facility id
+          example: 00000000-0000-4000-8000-000000000001
+        code:
+          type: string
+          example: OPD
+        name:
+          type: string
+          example: Outpatient Department
+        active:
+          type: boolean
+          description: Whether the department can be used for new encounters
+          example: true
+
+    StartEncounterRequest:
+      type: object
+      description: |
+        Request payload for starting a clinical encounter.
+        Facility and attending clinician are resolved server-side.
+      required:
+        - patientId
+        - departmentId
+      properties:
+        patientId:
+          type: string
+          format: uuid
+          description: Patient for whom the encounter is started
+          example: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+        departmentId:
+          type: string
+          format: uuid
+          description: |
+            Department responsible for the encounter. Must belong to the local
+            facility node and be active.
+          example: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+
+    EncounterResponse:
+      type: object
+      description: Encounter resource returned by the API
+      required:
+        - id
+        - patientId
+        - attendingClinicianId
+        - facilityId
+        - departmentId
+        - startedAt
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Encounter UUIDv7
+          example: 018f9a0b-1c2d-7e3f-4a5b-6c7d8e9f0a1b
+        patientId:
+          type: string
+          format: uuid
+          example: 018d3f1a-6379-7a0e-971c-fcae741cfb12
+        attendingClinicianId:
+          type: string
+          format: uuid
+          description: Clinician recorded from the authenticated principal
+          example: 018e1a2b-3c4d-7e5f-6a7b-8c9d0e1f2a3b
+        facilityId:
+          type: string
+          format: uuid
+          description: Facility taken from local node identity at start time
+          example: 00000000-0000-4000-8000-000000000001
+        departmentId:
+          type: string
+          format: uuid
+          description: Department attributed to the encounter
+          example: 018f2a3b-4c5d-7e8f-9a0b-1c2d3e4f5a6b
+        startedAt:
+          type: string
+          format: date-time
+          example: "2026-11-01T07:30:00Z"
+        status:
+          $ref: '#/components/schemas/EncounterStatus'
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set when the encounter is discharged or cancelled
+          example: null
+
     Gender:
       type: string
       description: Gender of the patient

@@ -6,6 +6,9 @@ import com.matibabu.backend.domain.department.DepartmentRepository;
 import com.matibabu.backend.domain.encounter.Encounter;
 import com.matibabu.backend.domain.encounter.EncounterRepository;
 import com.matibabu.backend.domain.encounter.EncounterStatus;
+import com.matibabu.backend.exception.DepartmentFacilityMismatchException;
+import com.matibabu.backend.exception.DepartmentNotActiveException;
+import com.matibabu.backend.exception.DepartmentNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,167 +48,123 @@ class StartEncounterServiceTests {
 
     @Test
     void shouldStartAndSaveEncounter() {
-
         UUID patientId = UUID.randomUUID();
         UUID attendingClinicianId = UUID.randomUUID();
         UUID facilityId = UUID.randomUUID();
         UUID departmentId = UUID.randomUUID();
+        Instant startedAt = Instant.parse("2026-08-20T10:00:00Z");
 
-        Instant startedAt =
-                Instant.parse("2026-08-20T10:00:00Z");
+        Department department = Department.reconstitute(
+                departmentId,
+                facilityId,
+                "OPD",
+                "Outpatient Department",
+                true
+        );
 
-        Department department =
-                Department.create(
-                        facilityId,
-                        "OPD",
-                        "Outpatient Department"
-                );
-
-        when(nodeIdentity.facilityId())
-                .thenReturn(facilityId);
-
-        when(departmentRepository.findById(departmentId))
-                .thenReturn(Optional.of(department));
-
+        when(nodeIdentity.facilityId()).thenReturn(facilityId);
+        when(departmentRepository.findById(departmentId)).thenReturn(Optional.of(department));
         when(encounterRepository.save(any(Encounter.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Encounter encounter =
-                service.start(
-                        patientId,
-                        attendingClinicianId,
-                        departmentId,
-                        startedAt
-                );
+        Encounter encounter = service.start(
+                patientId,
+                attendingClinicianId,
+                departmentId,
+                startedAt
+        );
 
         assertNotNull(encounter.getId());
-
-        assertEquals(
-                patientId,
-                encounter.getPatientId()
-        );
-
-        assertEquals(
-                attendingClinicianId,
-                encounter.getAttendingClinicianId()
-        );
-
-        assertEquals(
-                facilityId,
-                encounter.getFacilityId()
-        );
-
-        assertEquals(
-                departmentId,
-                encounter.getDepartmentId()
-        );
-
-        assertEquals(
-                startedAt,
-                encounter.getStartedAt()
-        );
-
-        assertEquals(
-                EncounterStatus.ACTIVE,
-                encounter.getStatus()
-        );
-
+        assertEquals(patientId, encounter.getPatientId());
+        assertEquals(attendingClinicianId, encounter.getAttendingClinicianId());
+        assertEquals(facilityId, encounter.getFacilityId());
+        assertEquals(departmentId, encounter.getDepartmentId());
+        assertEquals(startedAt, encounter.getStartedAt());
+        assertEquals(EncounterStatus.ACTIVE, encounter.getStatus());
         assertNull(encounter.getEndedAt());
 
-        verify(departmentRepository)
-                .findById(departmentId);
-
-        verify(encounterRepository)
-                .save(encounter);
+        verify(departmentRepository).findById(departmentId);
+        verify(encounterRepository).save(encounter);
     }
 
     @Test
     void shouldRejectDepartmentThatDoesNotExist() {
-
         UUID patientId = UUID.randomUUID();
         UUID attendingClinicianId = UUID.randomUUID();
         UUID facilityId = UUID.randomUUID();
         UUID departmentId = UUID.randomUUID();
+        Instant startedAt = Instant.parse("2026-08-20T10:00:00Z");
 
-        Instant startedAt =
-                Instant.parse("2026-08-20T10:00:00Z");
+        when(nodeIdentity.facilityId()).thenReturn(facilityId);
+        when(departmentRepository.findById(departmentId)).thenReturn(Optional.empty());
 
-        when(nodeIdentity.facilityId())
-                .thenReturn(facilityId);
-
-        when(departmentRepository.findById(departmentId))
-                .thenReturn(Optional.empty());
-
-        IllegalArgumentException exception =
-                assertThrows(
-                        IllegalArgumentException.class,
-                        () -> service.start(
-                                patientId,
-                                attendingClinicianId,
-                                departmentId,
-                                startedAt
-                        )
-                );
-
-        assertEquals(
-                "Department not found: " + departmentId,
-                exception.getMessage()
+        DepartmentNotFoundException exception = assertThrows(
+                DepartmentNotFoundException.class,
+                () -> service.start(patientId, attendingClinicianId, departmentId, startedAt)
         );
 
-        verify(departmentRepository)
-                .findById(departmentId);
-
-        verify(encounterRepository, never())
-                .save(any());
+        assertTrue(exception.getMessage().contains(departmentId.toString()));
+        verify(departmentRepository).findById(departmentId);
+        verify(encounterRepository, never()).save(any());
     }
 
     @Test
     void shouldRejectDepartmentFromAnotherFacility() {
-
         UUID patientId = UUID.randomUUID();
         UUID attendingClinicianId = UUID.randomUUID();
-
         UUID currentFacilityId = UUID.randomUUID();
         UUID departmentFacilityId = UUID.randomUUID();
         UUID departmentId = UUID.randomUUID();
+        Instant startedAt = Instant.parse("2026-08-20T10:00:00Z");
 
-        Instant startedAt =
-                Instant.parse("2026-08-20T10:00:00Z");
-
-        Department department =
-                Department.create(
-                        departmentFacilityId,
-                        "OPD",
-                        "Outpatient Department"
-                );
-
-        when(nodeIdentity.facilityId())
-                .thenReturn(currentFacilityId);
-
-        when(departmentRepository.findById(departmentId))
-                .thenReturn(Optional.of(department));
-
-        IllegalArgumentException exception =
-                assertThrows(
-                        IllegalArgumentException.class,
-                        () -> service.start(
-                                patientId,
-                                attendingClinicianId,
-                                departmentId,
-                                startedAt
-                        )
-                );
-
-        assertEquals(
-                "Department does not belong to the current facility",
-                exception.getMessage()
+        Department department = Department.reconstitute(
+                departmentId,
+                departmentFacilityId,
+                "OPD",
+                "Outpatient Department",
+                true
         );
 
-        verify(departmentRepository)
-                .findById(departmentId);
+        when(nodeIdentity.facilityId()).thenReturn(currentFacilityId);
+        when(departmentRepository.findById(departmentId)).thenReturn(Optional.of(department));
 
-        verify(encounterRepository, never())
-                .save(any());
+        DepartmentFacilityMismatchException exception = assertThrows(
+                DepartmentFacilityMismatchException.class,
+                () -> service.start(patientId, attendingClinicianId, departmentId, startedAt)
+        );
+
+        assertTrue(exception.getMessage().contains(departmentId.toString()));
+        assertTrue(exception.getMessage().contains(currentFacilityId.toString()));
+        verify(departmentRepository).findById(departmentId);
+        verify(encounterRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectInactiveDepartment() {
+        UUID patientId = UUID.randomUUID();
+        UUID attendingClinicianId = UUID.randomUUID();
+        UUID facilityId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+        Instant startedAt = Instant.parse("2026-08-20T10:00:00Z");
+
+        Department department = Department.reconstitute(
+                departmentId,
+                facilityId,
+                "OPD",
+                "Outpatient Department",
+                false
+        );
+
+        when(nodeIdentity.facilityId()).thenReturn(facilityId);
+        when(departmentRepository.findById(departmentId)).thenReturn(Optional.of(department));
+
+        DepartmentNotActiveException exception = assertThrows(
+                DepartmentNotActiveException.class,
+                () -> service.start(patientId, attendingClinicianId, departmentId, startedAt)
+        );
+
+        assertTrue(exception.getMessage().contains(departmentId.toString()));
+        verify(departmentRepository).findById(departmentId);
+        verify(encounterRepository, never()).save(any());
     }
 }
-
