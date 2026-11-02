@@ -1,0 +1,231 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# Cancel superseded runs on the same branch/PR
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Detect which areas changed so we do not burn minutes on unrelated work
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      frontend_pwa: ${{ steps.filter.outputs.frontend_pwa }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+            frontend_pwa:
+              - 'frontend-pwa/**'
+              - '.github/workflows/ci.yml'
+            docs:
+              - 'docs/**'
+              - 'README.md'
+              - 'requests.http'
+              - '.github/workflows/ci.yml'
+
+  # ---------------------------------------------------------------------------
+  # Backend: compile → test → package (Maven wrapper, Java 25)
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Show toolchain
+        run: |
+          java -version
+          ./mvnw -v
+
+      - name: Compile
+        run: ./mvnw -B -DskipTests compile
+
+      - name: Test
+        run: ./mvnw -B test
+        env:
+          # Reinforce test isolation even if a profile leaks in
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATASOURCE_URL: jdbc:sqlite:file:matibabu-ci?mode=memory&cache=shared
+
+      - name: Package
+        run: ./mvnw -B -DskipTests package
+
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/target/*.jar
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # frontend-pwa (Vite + React) — primary web client
+  # ---------------------------------------------------------------------------
+  frontend-pwa:
+    name: Frontend PWA
+    needs: changes
+    if: needs.changes.outputs.frontend_pwa == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-pwa
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend-pwa/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # frontend (Next.js scaffold) — keep green if present
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend (Next)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build
+        env:
+          # Next may expect this in CI
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  # ---------------------------------------------------------------------------
+  # Docs / OpenAPI sanity (cheap, no runtime deps)
+  # ---------------------------------------------------------------------------
+  docs:
+    name: Docs
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check curated OpenAPI exists and parses as YAML
+        run: |
+          set -euo pipefail
+          test -f docs/api/openapi.yaml
+          python3 - <<'PY'
+          from pathlib import Path
+          try:
+              import yaml
+          except ImportError:
+              import subprocess, sys
+              subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "pyyaml"])
+              import yaml
+          path = Path("docs/api/openapi.yaml")
+          if not path.exists():
+              # Allow docs-only PRs that do not yet include openapi
+              print("docs/api/openapi.yaml not present — skip parse")
+              raise SystemExit(0)
+          doc = yaml.safe_load(path.read_text())
+          assert doc.get("openapi"), "missing openapi version"
+          assert "paths" in doc, "missing paths"
+          print("openapi.yaml OK:", doc.get("info", {}).get("title"), doc.get("info", {}).get("version"))
+          PY
+
+  # ---------------------------------------------------------------------------
+  # Single required gate for branch protection (always runs)
+  # ---------------------------------------------------------------------------
+  ci-success:
+    name: CI success
+    if: always()
+    needs: [changes, backend, frontend-pwa, frontend, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate job results
+        run: |
+          set -euo pipefail
+          echo "backend=${{ needs.backend.result }}"
+          echo "frontend-pwa=${{ needs.frontend-pwa.result }}"
+          echo "frontend=${{ needs.frontend.result }}"
+          echo "docs=${{ needs.docs.result }}"
+
+          fail=0
+          for r in "${{ needs.backend.result }}" "${{ needs.frontend-pwa.result }}" \
+                    "${{ needs.frontend.result }}" "${{ needs.docs.result }}"; do
+            case "$r" in
+              failure|cancelled) fail=1 ;;
+              success|skipped) ;;
+              *) fail=1 ;;
+            esac
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            echo "One or more required CI jobs failed"
+            exit 1
+          fi
+          echo "All applicable CI jobs passed (or were correctly skipped)"
