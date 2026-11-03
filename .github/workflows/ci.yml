@@ -34,6 +34,7 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
+              - 'docker-compose.yml'
               - '.github/workflows/ci.yml'
             frontend:
               - 'frontend/**'
@@ -162,6 +163,45 @@ jobs:
           # Next may expect this in CI
           NEXT_TELEMETRY_DISABLED: '1'
 
+
+  # ---------------------------------------------------------------------------
+  # Backend Docker image — multi-stage build (no registry push on PR)
+  # ---------------------------------------------------------------------------
+  docker-backend:
+    name: Docker (backend)
+    needs: [changes, backend]
+    if: |
+      always() &&
+      needs.changes.outputs.backend == 'true' &&
+      needs.backend.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          load: true
+          tags: |
+            matibabu-backend:ci
+            matibabu-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke — image exists and JRE runs
+        run: |
+          set -euo pipefail
+          docker image inspect matibabu-backend:ci >/dev/null
+          docker run --rm --entrypoint java matibabu-backend:ci -version
+          echo "Docker backend image OK"
+
   # ---------------------------------------------------------------------------
   # Docs / OpenAPI sanity (cheap, no runtime deps)
   # ---------------------------------------------------------------------------
@@ -203,7 +243,7 @@ jobs:
   ci-success:
     name: CI success
     if: always()
-    needs: [changes, backend, frontend-pwa, frontend, docs]
+    needs: [changes, backend, docker-backend, frontend-pwa, frontend, docs]
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate job results

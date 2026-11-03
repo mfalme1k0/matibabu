@@ -7,6 +7,7 @@ Workflow: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
 | Job | When | Checks |
 |-----|------|--------|
 | **Backend** | `backend/**` changes | `./mvnw compile` → `test` → `package` (Java 25, Maven wrapper) |
+| **Docker (backend)** | backend job green | Multi-stage image build (`backend/Dockerfile`); no registry push on PR |
 | **Frontend PWA** | `frontend-pwa/**` changes | `npm ci`, typecheck, production build |
 | **Frontend (Next)** | `frontend/**` changes | `npm ci`, lint (non-blocking), build |
 | **Docs** | `docs/**`, README, `requests.http` | OpenAPI YAML parses if present |
@@ -48,3 +49,22 @@ On `main`:
 - Mutation testing / coverage gates (add when suite is stable)
 
 Deploy automation should wait until this CI stage is reliably green on main.
+
+## Docker (backend)
+
+```bash
+# Build only
+docker build -t matibabu-backend:local ./backend
+
+# Or compose (persists SQLite under a named volume)
+docker compose up --build
+```
+
+Image defaults:
+
+* Profile: `prod`
+* DB: `jdbc:sqlite:/data/matibabu.db` (mount a volume on `/data`)
+* Port: `8080`
+
+CI builds the image after the Backend job succeeds; it does **not** push to a registry.
+Add GHCR publish later when you are ready for CD.
