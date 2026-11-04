@@ -1,29 +1,92 @@
-# Local facility-node run of the Matibabu backend.
+# Local facility-node run of the Matibabu backend and PostgreSQL database.
 # Usage:
 #   docker compose up --build
 # API: http://localhost:8080
 # Swagger: http://localhost:8080/swagger-ui.html
+
+name: matibabu
+
 services:
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - matibabu-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     image: matibabu-backend:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT}:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:sqlite:/data/matibabu.db
-      APP_FACILITY_ID: "00000000-0000-4000-8000-000000000001"
-      APP_CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173"
-    volumes:
-      - matibabu-data:/data
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      FACILITY_ID: ${FACILITY_ID}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS}
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+  backend-sqlite:
+    profiles:
+      - sqlite
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: matibabu-backend:local
+    restart: unless-stopped
+    ports:
+      - "${SQLITE_BACKEND_PORT:-8081}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      # Environment variables have higher precedence than
+      # application-local.properties, so this points SQLite to /data.
+      SPRING_DATASOURCE_URL: jdbc:sqlite:/data/matibabu.db
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    volumes:
+      - matibabu-sqlite-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"
+        ]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 90s
 
 volumes:
-  matibabu-data:
+  matibabu-postgres-data:
+  matibabu-sqlite-data:

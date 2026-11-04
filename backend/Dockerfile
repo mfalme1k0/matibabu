@@ -17,8 +17,10 @@ RUN ./mvnw -B -DskipTests dependency:go-offline || ./mvnw -B -DskipTests depende
 
 COPY src src
 RUN ./mvnw -B -DskipTests package \
-    && JAR="$(ls target/backend-*.jar | grep -v '\.original$' | head -n1)" \
+    && JAR="$(find target -maxdepth 1 -type f -name 'backend-*.jar' ! -name '*.original' | head -n 1)" \
+    && test -n "$JAR" \
     && cp "$JAR" /workspace/application.jar
+
 
 # -----------------------------------------------------------------------------
 # Runtime stage — minimal JRE image
@@ -40,7 +42,7 @@ USER matibabu
 ENV SPRING_PROFILES_ACTIVE=prod \
     JAVA_OPTS="-XX:MaxRAMPercentage=75.0" \
     SERVER_PORT=8080 \
-    # SQLite under /data so a volume can persist the facility DB
+
     DB_URL=jdbc:sqlite:/data/matibabu.db
 
 EXPOSE 8080
