@@ -23,6 +23,7 @@ public class MedicalRecord {
     private final List<ClinicalObservation> observations = new ArrayList<>();
     private final List<Diagnosis> diagnoses = new ArrayList<>();
     private final List<Treatment> treatments = new ArrayList<>();
+    private final List<Allergy> allergies = new ArrayList<>();
 
 
     /*
@@ -42,14 +43,14 @@ public class MedicalRecord {
      * Reconstruct an existing medical record from persisted data.
      */
     public static MedicalRecord reconstitute(
-            UUID uuid,
-            UUID patientId,
-            UUID encounterId,
-            Instant createdAt
+        UUID uuid,
+        UUID patientId,
+        UUID encounterId,
+        Instant createdAt
     ) {
 
         MedicalRecord medicalRecord =
-                new MedicalRecord(patientId, encounterId);
+        new MedicalRecord(patientId, encounterId);
 
         medicalRecord.uuid = uuid;
         medicalRecord.createdAt = createdAt;
@@ -99,6 +100,16 @@ public class MedicalRecord {
 
     public List<Treatment> getTreatments() {
         return List.copyOf(treatments);
+    }
+
+
+    // Allergies
+    public void addAllergy(Allergy allergy) {
+        allergies.add(allergy);
+    }
+
+    public List<Allergy> getAllergies() {
+        return List.copyOf(allergies);
     }
 
 
