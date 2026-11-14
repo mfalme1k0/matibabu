@@ -1,5 +1,6 @@
 package com.matibabu.backend.api.medicalrecord;
 
+import com.matibabu.backend.domain.medicalrecord.Allergy;
 import com.matibabu.backend.domain.medicalrecord.ClinicalObservation;
 import com.matibabu.backend.domain.medicalrecord.Diagnosis;
 import com.matibabu.backend.domain.medicalrecord.MedicalRecord;
@@ -18,7 +19,8 @@ public record MedicalRecordResponse(
         List<Vital> vitals,
         List<ClinicalObservation> observations,
         List<Diagnosis> diagnoses,
-        List<Treatment> treatments
+        List<Treatment> treatments,
+        List<Allergy> allergies
 ) {
 
     public static MedicalRecordResponse from(
@@ -32,7 +34,8 @@ public record MedicalRecordResponse(
                 medicalRecord.getVitals(),
                 medicalRecord.getObservations(),
                 medicalRecord.getDiagnoses(),
-                medicalRecord.getTreatments()
+                medicalRecord.getTreatments(),
+                medicalRecord.getAllergies()
         );
     }
 }

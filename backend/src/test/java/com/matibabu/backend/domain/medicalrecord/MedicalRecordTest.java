@@ -296,4 +296,53 @@ class MedicalRecordTest {
                 () -> treatments.add(null)
         );
     }
+
+    
+        @Test
+        void shouldAddAllergy() {
+        MedicalRecord medicalRecord =
+                new MedicalRecord(
+                        UUID.randomUUID(),
+                        UUID.randomUUID()
+                );
+
+        Allergy allergy = new Allergy(
+                medicalRecord.getId(),
+                "Peanuts",
+                "Anaphylaxis"
+        );
+
+        medicalRecord.addAllergy(allergy);
+
+        assertEquals(1, medicalRecord.getAllergies().size());
+        assertEquals(allergy, medicalRecord.getAllergies().get(0));
+        }
+
+        @Test
+        void shouldReturnEmptyAllergies() {
+        MedicalRecord medicalRecord =
+                new MedicalRecord(
+                        UUID.randomUUID(),
+                        UUID.randomUUID()
+                );
+
+        assertNotNull(medicalRecord.getAllergies());
+        assertTrue(medicalRecord.getAllergies().isEmpty());
+        }
+
+        @Test
+        void shouldReturnUnmodifiableAllergies() {
+        MedicalRecord medicalRecord =
+                new MedicalRecord(
+                        UUID.randomUUID(),
+                        UUID.randomUUID()
+                );
+
+        List<Allergy> allergies = medicalRecord.getAllergies();
+
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> allergies.add(null)
+        );
+        }
 }

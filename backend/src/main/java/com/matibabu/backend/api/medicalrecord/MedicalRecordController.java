@@ -4,6 +4,7 @@ import com.matibabu.backend.application.medicalrecord.AddClinicalObservation;
 import com.matibabu.backend.application.medicalrecord.AddDiagnosis;
 import com.matibabu.backend.application.medicalrecord.AddTreatment;
 import com.matibabu.backend.application.medicalrecord.AddVital;
+import com.matibabu.backend.application.medicalrecord.AddAllergy;
 import com.matibabu.backend.application.medicalrecord.CreateMedicalRecordUseCase;
 import com.matibabu.backend.application.medicalrecord.GetMedicalRecordUseCase;
 import com.matibabu.backend.exception.MedicalRecordNotFoundException;
@@ -28,6 +29,7 @@ public class MedicalRecordController {
     private final AddClinicalObservation addClinicalObservation;
     private final AddDiagnosis addDiagnosis;
     private final AddTreatment addTreatment;
+    private final AddAllergy addAllergy;
 
     public MedicalRecordController(
             CreateMedicalRecordUseCase createMedicalRecordUseCase,
@@ -35,7 +37,8 @@ public class MedicalRecordController {
             AddVital addVital,
             AddClinicalObservation addClinicalObservation,
             AddDiagnosis addDiagnosis,
-            AddTreatment addTreatment
+            AddTreatment addTreatment,
+            AddAllergy addAllergy
     ) {
         this.createMedicalRecordUseCase = createMedicalRecordUseCase;
         this.getMedicalRecordUseCase = getMedicalRecordUseCase;
@@ -43,6 +46,7 @@ public class MedicalRecordController {
         this.addClinicalObservation = addClinicalObservation;
         this.addDiagnosis = addDiagnosis;
         this.addTreatment = addTreatment;
+        this.addAllergy = addAllergy;
     }
 
     /*
@@ -187,4 +191,31 @@ public class MedicalRecordController {
 
         return ResponseEntity.ok(MedicalRecordResponse.from(updated));
     }
+    
+        /*
+        * Adds an allergy to the medical record belonging to the encounter.
+        */
+        @PostMapping("/allergies")
+        public ResponseEntity<MedicalRecordResponse> addAllergy(
+                @PathVariable UUID encounterId,
+                @RequestParam String allergen,
+                @RequestParam String reaction
+        ) {
+        MedicalRecord medicalRecord =
+                getMedicalRecordUseCase
+                        .getByEncounterId(encounterId)
+                        .orElseThrow(
+                                () -> new MedicalRecordNotFoundException(encounterId)
+                        );
+
+        MedicalRecord updated =
+                addAllergy.execute(
+                        medicalRecord.getId(),
+                        allergen,
+                        reaction
+                );
+
+        return ResponseEntity.ok(MedicalRecordResponse.from(updated));
+        }
+
 }

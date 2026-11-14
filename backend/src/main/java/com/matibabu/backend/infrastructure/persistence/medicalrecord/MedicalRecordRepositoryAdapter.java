@@ -16,17 +16,23 @@ public class MedicalRecordRepositoryAdapter implements MedicalRecordRepository {
     private final SpringDataTreatmentsRepository treatmentsRepository;
     private final MedicalRecordMapper mapper;
     private final TreatmentMapper treatmentMapper;
+    private final SpringDataAllergiesRepository allergiesRepository;
+    private final AllergyMapper allergyMapper;
 
     public MedicalRecordRepositoryAdapter(
-            SpringDataMedicalRecordsRepository jpaRepository,
-            SpringDataTreatmentsRepository treatmentsRepository,
-            MedicalRecordMapper mapper,
-            TreatmentMapper treatmentMapper
+        SpringDataMedicalRecordsRepository jpaRepository,
+        SpringDataTreatmentsRepository treatmentsRepository,
+        MedicalRecordMapper mapper,
+        TreatmentMapper treatmentMapper,
+        SpringDataAllergiesRepository allergiesRepository,
+        AllergyMapper allergyMapper
     ) {
         this.jpaRepository = jpaRepository;
         this.treatmentsRepository = treatmentsRepository;
         this.mapper = mapper;
         this.treatmentMapper = treatmentMapper;
+        this.allergiesRepository = allergiesRepository;
+        this.allergyMapper = allergyMapper;
     }
 
     @Override
@@ -41,11 +47,19 @@ public class MedicalRecordRepositoryAdapter implements MedicalRecordRepository {
         // a bottleneck, switch to diffing/updating individual rows.
         treatmentsRepository.deleteByMedicalRecordId(medicalRecord.getId());
         List<TreatmentEntity> treatmentEntities = medicalRecord.getTreatments().stream()
-                .map(treatmentMapper::toEntity)
-                .toList();
+            .map(treatmentMapper::toEntity)
+            .toList();
         treatmentsRepository.saveAll(treatmentEntities);
 
-        return hydrate(savedEntity);
+        allergiesRepository.deleteByMedicalRecordId(medicalRecord.getId());
+
+        List<AllergyEntity> allergyEntities = medicalRecord.getAllergies().stream()
+            .map(allergyMapper::toEntity)
+            .toList();
+
+        allergiesRepository.saveAll(allergyEntities); 
+
+        return hydrate(savedEntity);  
     }
 
     @Override
@@ -77,12 +91,21 @@ public class MedicalRecordRepositoryAdapter implements MedicalRecordRepository {
      */
     private MedicalRecord hydrate(MedicalRecordEntity entity) {
         MedicalRecord medicalRecord = mapper.toDomain(entity);
-
+         
+        //Load treatments
         treatmentsRepository.findByMedicalRecordId(entity.getId())
-                .forEach(treatmentEntity ->
-                        medicalRecord.addTreatment(treatmentMapper.toDomain(treatmentEntity))
-                );
+            .forEach(treatmentEntity ->
+                 medicalRecord.addTreatment(treatmentMapper.toDomain(treatmentEntity))
+            );
 
-        return medicalRecord;
+        
+        //Load allergies
+        allergiesRepository.findByMedicalRecordId(entity.getId())
+            .forEach(allergyEntity ->
+                medicalRecord.addAllergy(allergyMapper.toDomain(allergyEntity))
+            );
+
+         return medicalRecord;
+
     }
 }
